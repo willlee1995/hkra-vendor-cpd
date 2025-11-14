@@ -147,53 +147,37 @@ export const vendorApiClient = {
 
   // Upload poster file
   async uploadPoster(file: File): Promise<string> {
-    const { data: { session }, data: { user } } = await supabase.auth.getSession()
-    if (!session || !user) {
-      throw new Error('Not authenticated')
-    }
+    const headers = await getAuthHeaders()
 
-    // Get vendor ID
-    const { data: vendor, error: vendorError } = await supabase
-      .from('vendors')
-      .select('id')
-      .eq('user_id', user.id)
-      .single()
+    // Create FormData for file upload
+    const formData = new FormData()
+    formData.append('file', file)
 
-    if (vendorError) {
-      // Check if it's a "not found" error or a different error
-      if (vendorError.code === 'PGRST116' || vendorError.message?.includes('No rows')) {
-        throw new Error('Vendor account not set up. Please contact administrator to create your vendor profile.')
+    const response = await fetch(`${EDGE_FUNCTION_URL}/vendor-upload-poster`, {
+      method: 'POST',
+      headers: {
+        'Authorization': headers['Authorization'],
+        // Don't set Content-Type - let browser set it with boundary for FormData
+      },
+      body: formData,
+    })
+
+    if (!response.ok) {
+      const error = await response.json()
+      const errorMessage = error.error || 'Failed to upload poster'
+
+      // Provide helpful message for vendor record not found
+      if (errorMessage.includes('Vendor record not found') || response.status === 403) {
+        const errorData = error as any
+        const userId = errorData?.userId || 'unknown'
+        throw new Error(`Vendor account not set up. User ID: ${userId}. Please ensure the vendor record's user_id matches your authenticated user ID.`)
       }
-      throw new Error(`Database error: ${vendorError.message || 'Vendor record not found'}`)
+
+      throw new Error(errorMessage)
     }
 
-    if (!vendor) {
-      throw new Error('Vendor account not set up. Please contact administrator to create your vendor profile.')
-    }
-
-    // Generate file path
-    const fileExt = file.name.split('.').pop()
-    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
-    const filePath = `${vendor.id}/${fileName}`
-
-    // Upload file
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from('vendor-posters')
-      .upload(filePath, file, {
-        contentType: file.type,
-        upsert: false,
-      })
-
-    if (uploadError) {
-      throw new Error(uploadError.message || 'Failed to upload poster')
-    }
-
-    // Get public URL
-    const { data: urlData } = supabase.storage
-      .from('vendor-posters')
-      .getPublicUrl(filePath)
-
-    return urlData.publicUrl
+    const result = await response.json()
+    return result.fileUrl
   },
 }
 

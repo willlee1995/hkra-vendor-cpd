@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { sendEmail, generateRequestorConfirmationEmail, generateAdminNotificationEmail } from './email.ts'
 
 // Get Supabase credentials from environment variables
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
@@ -209,6 +210,78 @@ serve(async (req) => {
 
         if (createError) {
           throw createError
+        }
+
+        // Send emails (errors are caught so they don't break request creation)
+        // Send confirmation email to requestor
+        if (newRequest.contact_email) {
+          try {
+            await sendEmail({
+              to: newRequest.contact_email,
+              subject: `CPD Request Received - ${newRequest.event_name}`,
+              html: generateRequestorConfirmationEmail({
+                event_name: newRequest.event_name,
+                event_start_date: newRequest.event_start_date,
+                event_end_date: newRequest.event_end_date,
+                expected_cpd_points: parseFloat(newRequest.expected_cpd_points),
+                contact_name: newRequest.contact_name,
+                request_id: newRequest.id,
+              }),
+            })
+          } catch (error) {
+            console.error('Failed to send confirmation email:', error)
+            // Don't throw - email failures shouldn't break request creation
+          }
+        }
+
+        // Send notification emails to all admin users
+        try {
+          // Query admin users using Admin API
+          const { data: allUsers, error: listError } = await supabaseClient.auth.admin.listUsers()
+
+          if (listError) {
+            console.error('Failed to list users for admin notifications:', listError)
+          } else {
+            // Filter users with admin role
+            const adminEmails = allUsers?.users
+              ?.filter((user: any) => {
+                const role = user.user_metadata?.role || user.raw_user_meta_data?.role
+                return role === 'admin' && user.email
+              })
+              .map((user: any) => user.email)
+              .filter(Boolean) || []
+
+            if (adminEmails.length > 0) {
+              console.log(`Sending admin notifications to ${adminEmails.length} admin(s)`)
+              const emailPromises = adminEmails.map((email: string) =>
+                sendEmail({
+                  to: email,
+                  subject: `New CPD Request Requires Approval - ${newRequest.event_name}`,
+                  html: generateAdminNotificationEmail({
+                    event_name: newRequest.event_name,
+                    event_start_date: newRequest.event_start_date,
+                    event_end_date: newRequest.event_end_date,
+                    expected_cpd_points: parseFloat(newRequest.expected_cpd_points),
+                    vendor_company_name: newRequest.vendor_company_name,
+                    contact_name: newRequest.contact_name,
+                    contact_email: newRequest.contact_email,
+                    contact_phone: newRequest.contact_phone || undefined,
+                    request_id: newRequest.id,
+                    created_at: newRequest.created_at,
+                  }),
+                }).catch((error) => {
+                  console.error(`Failed to send admin notification to ${email}:`, error)
+                })
+              )
+
+              await Promise.allSettled(emailPromises)
+            } else {
+              console.warn('No admin users found to send notifications to')
+            }
+          }
+        } catch (emailError) {
+          console.error('Error sending admin notification emails:', emailError)
+          // Don't throw - email failures shouldn't break request creation
         }
 
         return new Response(

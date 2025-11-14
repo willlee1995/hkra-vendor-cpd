@@ -64,6 +64,24 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
+# Deploy vendor-upload-poster function
+Write-Host ""
+Write-Host "📦 Deploying vendor-upload-poster function..." -ForegroundColor Cyan
+docker cp supabase/functions/vendor-upload-poster "${DockerContainer}:${FunctionsPath}/"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Failed to copy vendor-upload-poster" -ForegroundColor Red
+    exit 1
+}
+
+# Deploy vendor-info function
+Write-Host ""
+Write-Host "📦 Deploying vendor-info function..." -ForegroundColor Cyan
+docker cp supabase/functions/vendor-info "${DockerContainer}:${FunctionsPath}/"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Failed to copy vendor-info" -ForegroundColor Red
+    exit 1
+}
+
 # Restart the functions service
 Write-Host ""
 Write-Host "🔄 Restarting functions service..." -ForegroundColor Cyan
@@ -79,6 +97,8 @@ Write-Host ""
 Write-Host "🔗 Function URLs:" -ForegroundColor Cyan
 Write-Host "   - vendor-requests: $SupabaseUrl/functions/v1/vendor-requests"
 Write-Host "   - vendor-upload: $SupabaseUrl/functions/v1/vendor-upload"
+Write-Host "   - vendor-upload-poster: $SupabaseUrl/functions/v1/vendor-upload-poster"
+Write-Host "   - vendor-info: $SupabaseUrl/functions/v1/vendor-info"
 Write-Host ""
 Write-Host "💡 Check logs with: docker logs $DockerContainer" -ForegroundColor Gray
 

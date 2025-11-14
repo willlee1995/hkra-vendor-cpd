@@ -65,6 +65,22 @@ docker cp supabase/functions/vendor-upload "${DOCKER_CONTAINER}:${FUNCTIONS_PATH
     exit 1
 }
 
+# Deploy vendor-upload-poster function
+echo ""
+echo "📦 Deploying vendor-upload-poster function..."
+docker cp supabase/functions/vendor-upload-poster "${DOCKER_CONTAINER}:${FUNCTIONS_PATH}/" || {
+    echo "❌ Failed to copy vendor-upload-poster"
+    exit 1
+}
+
+# Deploy vendor-info function
+echo ""
+echo "📦 Deploying vendor-info function..."
+docker cp supabase/functions/vendor-info "${DOCKER_CONTAINER}:${FUNCTIONS_PATH}/" || {
+    echo "❌ Failed to copy vendor-info"
+    exit 1
+}
+
 # Restart the functions service
 echo ""
 echo "🔄 Restarting functions service..."
@@ -79,6 +95,8 @@ echo ""
 echo "🔗 Function URLs:"
 echo "   - vendor-requests: ${SUPABASE_URL}/functions/v1/vendor-requests"
 echo "   - vendor-upload: ${SUPABASE_URL}/functions/v1/vendor-upload"
+echo "   - vendor-upload-poster: ${SUPABASE_URL}/functions/v1/vendor-upload-poster"
+echo "   - vendor-info: ${SUPABASE_URL}/functions/v1/vendor-info"
 echo ""
 echo "💡 Check logs with: docker logs ${DOCKER_CONTAINER}"
 

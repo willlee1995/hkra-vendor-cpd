@@ -192,6 +192,29 @@ Make sure your Edge Functions have access to environment variables:
 
 ### For Docker Compose
 
+**Option 1: Using .env file (Recommended)**
+
+Create a `.env` file in your project root:
+
+```env
+SUPABASE_URL=https://supabase.hkra.org.hk
+SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+RESEND_API_KEY=re_xxxxxxxxxxxxx
+FROM_EMAIL=noreply@hkra.org.hk
+```
+
+Then add to `docker-compose.yml`:
+
+```yaml
+services:
+  supabase_functions:
+    env_file:
+      - .env # Loads all variables from .env file
+```
+
+**Option 2: Direct environment variables**
+
 Add to `docker-compose.yml`:
 
 ```yaml
@@ -201,7 +224,11 @@ services:
       SUPABASE_URL: ${SUPABASE_URL}
       SUPABASE_ANON_KEY: ${SUPABASE_ANON_KEY}
       SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      RESEND_API_KEY: ${RESEND_API_KEY}
+      FROM_EMAIL: ${FROM_EMAIL}
 ```
+
+**Note:** Make sure to add `.env` to your `.gitignore` file to avoid committing secrets!
 
 ### For CLI Deployment
 
