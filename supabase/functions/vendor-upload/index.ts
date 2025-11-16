@@ -32,9 +32,20 @@ serve(async (req) => {
   }
 
   try {
+    // Get public Supabase URL for generating public URLs
+    // Use PUBLIC_SUPABASE_URL if available, otherwise fall back to SUPABASE_URL
+    // PUBLIC_SUPABASE_URL should be set to the public-facing URL (e.g., https://supabase.hkra.org.hk)
+    const PUBLIC_SUPABASE_URL = Deno.env.get('PUBLIC_SUPABASE_URL') || SUPABASE_URL
+    
     // Create Supabase client with service role key to bypass RLS
     const supabaseClient = createClient(
       SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY,
+    )
+
+    // Create a separate client with public URL for generating public URLs
+    const publicUrlClient = createClient(
+      PUBLIC_SUPABASE_URL,
       SUPABASE_SERVICE_ROLE_KEY,
     )
 
@@ -163,8 +174,8 @@ serve(async (req) => {
       throw uploadError
     }
 
-    // Get public URL
-    const { data: urlData } = supabaseClient.storage
+    // Get public URL using the client with public URL
+    const { data: urlData } = publicUrlClient.storage
       .from('vendor-attendance')
       .getPublicUrl(filePath)
 

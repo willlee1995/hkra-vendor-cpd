@@ -6,13 +6,39 @@ import { VendorFileUpload } from '@/components/vendor/VendorFileUpload'
 import { useVendorRequest, useWithdrawVendorRequest } from '@/hooks/useVendorRequests'
 import { ArrowLeft, Edit, Download, Calendar, Mail, Phone, Building } from 'lucide-react'
 import { format } from 'date-fns'
-import { ThemeToggle } from '@/components/ThemeToggle'
+import { getDisplayableUrl } from '@/lib/storageUtils'
+import { HKRAHeader } from '@/components/vendor/HKRAHeader'
+import { useState, useEffect } from 'react'
 
 export function RequestDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { data: request, isLoading } = useVendorRequest(id!)
   const withdrawRequest = useWithdrawVendorRequest()
+  const [posterUrls, setPosterUrls] = useState<string[]>([])
+
+  // Get displayable URLs for posters if available
+  useEffect(() => {
+    const updatePosterUrls = async () => {
+      if (!request?.poster_file_url || (Array.isArray(request.poster_file_url) && request.poster_file_url.length === 0)) {
+        setPosterUrls([])
+        return
+      }
+
+      const urls = Array.isArray(request.poster_file_url) ? request.poster_file_url : [request.poster_file_url]
+
+      try {
+        const displayableUrls = await Promise.all(
+          urls.map(url => getDisplayableUrl(url, 'vendor-posters'))
+        )
+        setPosterUrls(displayableUrls)
+      } catch {
+        setPosterUrls(urls)
+      }
+    }
+
+    updatePosterUrls()
+  }, [request?.poster_file_url])
 
   const handleWithdraw = async () => {
     if (!id) return
@@ -48,17 +74,15 @@ export function RequestDetail() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/vendor/dashboard">
-            <Button variant="ghost" size="sm" className="text-foreground">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Dashboard
-            </Button>
-          </Link>
-          <ThemeToggle />
-        </div>
-      </header>
+      <HKRAHeader />
+      <div className="container mx-auto px-4 py-4 border-b">
+        <Link to="/vendor/dashboard">
+          <Button variant="ghost" size="sm">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Dashboard
+          </Button>
+        </Link>
+      </div>
 
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6 flex items-center justify-between">
@@ -120,21 +144,35 @@ export function RequestDetail() {
                   </div>
                 </div>
               )}
-              <div>
-                <p className="text-sm font-medium text-gray-500">Expected CPD Points</p>
-                <p className="text-lg font-semibold">{request.expected_cpd_points}</p>
-              </div>
-              {request.poster_file_url && (
+              {request.expected_cpd_points && (
                 <div>
-                  <p className="text-sm font-medium text-gray-500">Event Poster</p>
-                  <a
-                    href={request.poster_file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    View Poster
-                  </a>
+                  <p className="text-sm font-medium text-gray-500">CPD Points</p>
+                  <p className="text-lg font-semibold">{request.expected_cpd_points}</p>
+                </div>
+              )}
+              {posterUrls.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Event Related Materials</p>
+                  <div className="space-y-1">
+                    {posterUrls.map((url, index) => (
+                      <div key={index}>
+                        <a
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-600 hover:underline text-sm"
+                        >
+                          View file {index + 1}
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {request.zoom_webinar_id && (
+                <div>
+                  <p className="text-sm font-medium text-gray-500">Zoom Webinar ID</p>
+                  <p className="text-sm">{request.zoom_webinar_id}</p>
                 </div>
               )}
             </CardContent>

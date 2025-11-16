@@ -62,30 +62,38 @@ serve(async (req) => {
       )
     }
 
-    // Check if user is a vendor
-    const { data: vendor, error: vendorError } = await supabaseClient
-      .from('vendors')
-      .select('id')
-      .eq('user_id', user.id)
-      .single()
+    // Check if user is admin
+    const userRole = user.user_metadata?.role || user.raw_user_meta_data?.role
+    const isAdmin = userRole === 'admin'
 
-    if (vendorError || !vendor) {
-      // Log more details for debugging
-      console.error('Vendor lookup failed:', {
-        userId: user.id,
-        userEmail: user.email,
-        vendorError: vendorError,
-        vendorData: vendor,
-      })
+    // Check if user is a vendor (only needed for non-admin users)
+    let vendor = null
+    if (!isAdmin) {
+      const { data: vendorData, error: vendorError } = await supabaseClient
+        .from('vendors')
+        .select('id')
+        .eq('user_id', user.id)
+        .single()
 
-      return new Response(
-        JSON.stringify({
-          error: 'Vendor record not found',
-          details: vendorError?.message || 'No vendor record found for this user',
+      if (vendorError || !vendorData) {
+        // Log more details for debugging
+        console.error('Vendor lookup failed:', {
           userId: user.id,
-        }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+          userEmail: user.email,
+          vendorError: vendorError,
+          vendorData: vendorData,
+        })
+
+        return new Response(
+          JSON.stringify({
+            error: 'Vendor record not found',
+            details: vendorError?.message || 'No vendor record found for this user',
+            userId: user.id,
+          }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      vendor = vendorData
     }
 
     const url = new URL(req.url)
@@ -97,7 +105,7 @@ serve(async (req) => {
       case 'GET':
         if (requestId && requestId !== 'vendor-requests') {
           // Get single request
-          const { data: request, error: requestError } = await supabaseClient
+          let query = supabaseClient
             .from('vendor_requests')
             .select(`
               *,
@@ -110,8 +118,13 @@ serve(async (req) => {
               )
             `)
             .eq('id', requestId)
-            .eq('vendor_id', vendor.id)
-            .single()
+
+          // If not admin, filter by vendor_id
+          if (!isAdmin && vendor) {
+            query = query.eq('vendor_id', vendor.id)
+          }
+
+          const { data: request, error: requestError } = await query.single()
 
           if (requestError || !request) {
             return new Response(
@@ -125,15 +138,19 @@ serve(async (req) => {
             { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         } else {
-          // List all requests for vendor
+          // List requests - all for admin, filtered for vendor
           const { searchParams } = url
           const status = searchParams.get('status')
 
           let query = supabaseClient
             .from('vendor_requests')
             .select('*')
-            .eq('vendor_id', vendor.id)
             .order('created_at', { ascending: false })
+
+          // If not admin, filter by vendor_id
+          if (!isAdmin && vendor) {
+            query = query.eq('vendor_id', vendor.id)
+          }
 
           if (status) {
             query = query.eq('status', status)
@@ -152,24 +169,42 @@ serve(async (req) => {
         }
 
       case 'POST':
+        // Only vendors can create requests, not admins
+        if (isAdmin) {
+          return new Response(
+            JSON.stringify({ error: 'Admins cannot create requests' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
+        if (!vendor) {
+          return new Response(
+            JSON.stringify({ error: 'Vendor record required to create requests' }),
+            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+        }
+
         // Create new request
         const body = await req.json()
 
         // Validate required fields
-        if (!body.event_name || !body.event_start_date || !body.event_end_date || !body.expected_cpd_points) {
+        if (!body.event_name || !body.event_start_date || !body.event_end_date) {
           return new Response(
             JSON.stringify({ error: 'Missing required fields' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
 
-        // Validate CPD points range
-        const cpdPoints = parseFloat(body.expected_cpd_points)
-        if (cpdPoints < 0.5 || cpdPoints > 8.0) {
-          return new Response(
-            JSON.stringify({ error: 'CPD points must be between 0.5 and 8.0' }),
-            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
+        // CPD points are optional for vendors, admins will set them during approval
+        let cpdPoints: number | null = null
+        if (body.expected_cpd_points !== undefined && body.expected_cpd_points !== null) {
+          cpdPoints = parseFloat(body.expected_cpd_points)
+          if (isNaN(cpdPoints) || cpdPoints < 0.5 || cpdPoints > 8.0) {
+            return new Response(
+              JSON.stringify({ error: 'CPD points must be between 0.5 and 8.0' }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
         }
 
         // Validate dates
@@ -196,7 +231,7 @@ serve(async (req) => {
             event_name: body.event_name,
             event_start_date: body.event_start_date,
             event_end_date: body.event_end_date,
-            expected_cpd_points: cpdPoints,
+            expected_cpd_points: cpdPoints || null,
             vendor_company_name: vendorDetails?.company_name || body.vendor_company_name,
             contact_name: vendorDetails?.contact_name || body.contact_name,
             contact_email: vendorDetails?.contact_email || body.contact_email,
@@ -223,7 +258,7 @@ serve(async (req) => {
                 event_name: newRequest.event_name,
                 event_start_date: newRequest.event_start_date,
                 event_end_date: newRequest.event_end_date,
-                expected_cpd_points: parseFloat(newRequest.expected_cpd_points),
+                    expected_cpd_points: newRequest.expected_cpd_points ? parseFloat(String(newRequest.expected_cpd_points)) : null,
                 contact_name: newRequest.contact_name,
                 request_id: newRequest.id,
               }),
@@ -261,7 +296,7 @@ serve(async (req) => {
                     event_name: newRequest.event_name,
                     event_start_date: newRequest.event_start_date,
                     event_end_date: newRequest.event_end_date,
-                    expected_cpd_points: parseFloat(newRequest.expected_cpd_points),
+                    expected_cpd_points: newRequest.expected_cpd_points ? parseFloat(String(newRequest.expected_cpd_points)) : null,
                     vendor_company_name: newRequest.vendor_company_name,
                     contact_name: newRequest.contact_name,
                     contact_email: newRequest.contact_email,
@@ -290,7 +325,7 @@ serve(async (req) => {
         )
 
       case 'PATCH':
-        // Update request (only if pending)
+        // Update request
         if (!requestId || requestId === 'vendor-requests') {
           return new Response(
             JSON.stringify({ error: 'Request ID required' }),
@@ -298,13 +333,18 @@ serve(async (req) => {
           )
         }
 
-        // Check if request exists and is pending
-        const { data: existingRequest, error: checkError } = await supabaseClient
+        // Check if request exists
+        let query = supabaseClient
           .from('vendor_requests')
-          .select('status')
+          .select('status, vendor_id')
           .eq('id', requestId)
-          .eq('vendor_id', vendor.id)
-          .single()
+
+        // If not admin, filter by vendor_id
+        if (!isAdmin && vendor) {
+          query = query.eq('vendor_id', vendor.id)
+        }
+
+        const { data: existingRequest, error: checkError } = await query.single()
 
         if (checkError || !existingRequest) {
           return new Response(
@@ -313,7 +353,8 @@ serve(async (req) => {
           )
         }
 
-        if (existingRequest.status !== 'pending') {
+        // Vendors can only update pending requests, admins can update any
+        if (!isAdmin && existingRequest.status !== 'pending') {
           return new Response(
             JSON.stringify({ error: 'Can only update pending requests' }),
             { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -345,14 +386,34 @@ serve(async (req) => {
           }
         }
 
-        // Don't allow status changes via PATCH (vendors can only withdraw)
-        const { status, ...allowedUpdates } = updateBody
+        // Prepare update data
+        let updateData: any = { ...updateBody }
 
-        const { data: updatedRequest, error: updateError } = await supabaseClient
+        // Vendors cannot change status (they can only withdraw via DELETE)
+        // Admins can change status (approve/reject)
+        if (!isAdmin && updateBody.status) {
+          const { status, ...allowedUpdates } = updateBody
+          updateData = allowedUpdates
+        }
+
+        // If admin is approving, set approved_by and approved_at
+        if (isAdmin && updateBody.status === 'approved') {
+          updateData.approved_by = user.id
+          updateData.approved_at = new Date().toISOString()
+        }
+
+        // Build update query
+        let updateQuery = supabaseClient
           .from('vendor_requests')
-          .update(allowedUpdates)
+          .update(updateData)
           .eq('id', requestId)
-          .eq('vendor_id', vendor.id)
+
+        // If not admin, filter by vendor_id
+        if (!isAdmin && vendor) {
+          updateQuery = updateQuery.eq('vendor_id', vendor.id)
+        }
+
+        const { data: updatedRequest, error: updateError } = await updateQuery
           .select()
           .single()
 

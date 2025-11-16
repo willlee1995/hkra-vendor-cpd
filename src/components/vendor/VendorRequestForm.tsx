@@ -12,13 +12,13 @@ import { CalendarIcon, Upload } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUploadPoster } from '@/hooks/useVendorRequests'
 import { toast } from 'sonner'
+import { normalizeStorageUrl } from '@/lib/storageUtils'
 import type { CreateVendorRequestInput, UpdateVendorRequestInput } from '@/lib/vendorTypes'
 
 const requestSchema = z.object({
   event_name: z.string().min(1, 'Event name is required'),
   event_start_date: z.date({ required_error: 'Start date is required' }),
   event_end_date: z.date({ required_error: 'End date is required' }),
-  expected_cpd_points: z.number().min(0.5).max(8.0),
   vendor_company_name: z.string().min(1, 'Company name is required').optional().or(z.literal('')),
   contact_name: z.string().min(1, 'Contact name is required').optional().or(z.literal('')),
   contact_email: z.preprocess(
@@ -27,9 +27,20 @@ const requestSchema = z.object({
   ),
   contact_phone: z.string().optional().or(z.literal('')),
   poster_file_url: z.preprocess(
-    (val) => val === '' ? undefined : val,
-    z.string().url().optional()
+    (val) => {
+      if (!val || val === '') return []
+      // Handle both string (legacy) and array formats
+      if (Array.isArray(val)) {
+        return val.filter(url => url && url !== '')
+      }
+      if (typeof val === 'string') {
+        return [val]
+      }
+      return []
+    },
+    z.array(z.string().url()).min(1, 'At least one event-related material file is required')
   ),
+  zoom_webinar_id: z.string().optional().or(z.literal('')),
   expected_promotion_date: z.date().optional(),
 }).refine((data) => data.event_end_date >= data.event_start_date, {
   message: 'End date must be after start date',
@@ -147,12 +158,16 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
       event_name: initialValues?.event_name || '',
       event_start_date: initialValues?.event_start_date || undefined,
       event_end_date: initialValues?.event_end_date || undefined,
-      expected_cpd_points: initialValues?.expected_cpd_points || 1.0,
       vendor_company_name: initialValues?.vendor_company_name || '',
       contact_name: initialValues?.contact_name || '',
       contact_email: initialValues?.contact_email || '',
       contact_phone: initialValues?.contact_phone || '',
-      poster_file_url: initialValues?.poster_file_url || '',
+      poster_file_url: Array.isArray(initialValues?.poster_file_url)
+        ? initialValues.poster_file_url
+        : initialValues?.poster_file_url
+          ? [initialValues.poster_file_url]
+          : [],
+      zoom_webinar_id: initialValues?.zoom_webinar_id || '',
       expected_promotion_date: initialValues?.expected_promotion_date || undefined,
     },
     validatorAdapter: zodValidator(),
@@ -170,12 +185,12 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
           event_name: value.event_name,
           event_start_date: value.event_start_date.toISOString().split('T')[0],
           event_end_date: value.event_end_date.toISOString().split('T')[0],
-          expected_cpd_points: value.expected_cpd_points,
           vendor_company_name: value.vendor_company_name || undefined,
           contact_name: value.contact_name || undefined,
           contact_email: value.contact_email || undefined,
           contact_phone: value.contact_phone || undefined,
-          poster_file_url: value.poster_file_url || undefined,
+          poster_file_url: value.poster_file_url && value.poster_file_url.length > 0 ? value.poster_file_url : undefined,
+          zoom_webinar_id: value.zoom_webinar_id || undefined,
           expected_promotion_date: value.expected_promotion_date?.toISOString().split('T')[0] || undefined,
         }
         await onSubmit(submitData)
@@ -207,30 +222,43 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
   const [posterUploadError, setPosterUploadError] = useState<string | null>(null)
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
 
     setPosterUploadError(null)
 
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      setPosterUploadError('Please upload an image file')
-      return
-    }
+    // Validate all files
+    const invalidFiles: string[] = []
+    files.forEach(file => {
+      if (!file.type.startsWith('image/')) {
+        invalidFiles.push(`${file.name}: Not an image file`)
+      }
+      if (file.size > 50 * 1024 * 1024) {
+        invalidFiles.push(`${file.name}: File size exceeds 50MB`)
+      }
+    })
 
-    // Validate file size (50MB)
-    if (file.size > 50 * 1024 * 1024) {
-      setPosterUploadError('File size must be less than 50MB')
+    if (invalidFiles.length > 0) {
+      setPosterUploadError(invalidFiles.join(', '))
       return
     }
 
     try {
-      const url = await uploadPoster.mutateAsync(file)
-      form.setFieldValue('poster_file_url', url)
+      const urls = await uploadPoster.mutateAsync(files)
+      // Normalize URLs to fix any internal hostnames
+      const normalizedUrls = urls.map(url => normalizeStorageUrl(url))
+      // Merge with existing URLs
+      const currentUrls = Array.isArray(form.state.values.poster_file_url)
+        ? form.state.values.poster_file_url
+        : form.state.values.poster_file_url
+          ? [form.state.values.poster_file_url]
+          : []
+      form.setFieldValue('poster_file_url', [...currentUrls, ...normalizedUrls])
       setPosterUploadError(null)
+      toast.success(`Successfully uploaded ${urls.length} file(s)`)
     } catch (error: any) {
       console.error('Upload error:', error)
-      const errorMessage = error?.message || 'Failed to upload poster. Please try again.'
+      const errorMessage = error?.message || 'Failed to upload files. Please try again.'
       setPosterUploadError(errorMessage)
 
       // If vendor record not found, provide helpful guidance
@@ -297,6 +325,10 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
     }
     if (!values.event_start_date) {
       missingRequiredFields.push('Event start date')
+    }
+    const posterUrls = Array.isArray(values.poster_file_url) ? values.poster_file_url : (values.poster_file_url ? [values.poster_file_url] : [])
+    if (posterUrls.length === 0) {
+      missingRequiredFields.push('Event related materials')
     }
     if (!values.event_end_date) {
       missingRequiredFields.push('Event end date')
@@ -450,6 +482,11 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
                     onSelect={(date) => {
                       if (date) {
                         field.handleChange(date)
+                        // Auto-set end date to start date if end date is not set
+                        const currentEndDate = form.state.values.event_end_date
+                        if (!currentEndDate) {
+                          form.setFieldValue('event_end_date', date)
+                        }
                       }
                     }}
                     initialFocus
@@ -511,38 +548,6 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
           )}
         </form.Field>
       </div>
-
-      <form.Field
-        name="expected_cpd_points"
-        validators={{
-          onChange: zodValidator(z.number().min(0.5).max(8.0)),
-        }}
-      >
-        {(field) => (
-          <div className="space-y-2">
-            <Label htmlFor={field.name}>Expected CPD Points (0.5 - 8.0) *</Label>
-            <Input
-              id={field.name}
-              type="number"
-              step="0.5"
-              min="0.5"
-              max="8.0"
-              value={field.state.value}
-              onChange={(e) => field.handleChange(parseFloat(e.target.value) || 0)}
-              onBlur={field.handleBlur}
-            />
-            {(() => {
-              const errorMsg = getErrorMessage(field.state.meta.errors, field.state.meta.errorMap)
-              // Show error if field is touched or if there are errors (for submit validation)
-              const hasErrors = field.state.meta.errors.length > 0 || (field.state.meta.errorMap && Object.keys(field.state.meta.errorMap).length > 0)
-              const shouldShowError = errorMsg && (field.state.meta.isTouched || hasErrors)
-              return shouldShowError ? (
-                <p className="text-sm text-red-500">{errorMsg}</p>
-              ) : null
-            })()}
-          </div>
-        )}
-      </form.Field>
 
       <form.Field name="vendor_company_name">
         {(field) => (
@@ -612,36 +617,95 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
       </form.Field>
 
       <form.Field name="poster_file_url">
+        {(field) => {
+          const fileUrls = Array.isArray(field.state.value)
+            ? field.state.value
+            : field.state.value
+              ? [field.state.value]
+              : []
+
+          const removeFile = (indexToRemove: number) => {
+            const updatedUrls = fileUrls.filter((_, index) => index !== indexToRemove)
+            form.setFieldValue('poster_file_url', updatedUrls.length > 0 ? updatedUrls : undefined)
+          }
+
+          return (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Label htmlFor="event-materials">Event related materials</Label>
+                <span
+                  className="text-xs text-muted-foreground cursor-help"
+                  title="For example poster, rundown"
+                >
+                  (ℹ️)
+                </span>
+              </div>
+              <div className="space-y-2">
+                <Input
+                  id="event-materials"
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleFileUpload}
+                  disabled={uploadPoster.isPending}
+                  className="cursor-pointer"
+                />
+                {fileUrls.length > 0 && (
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      Uploaded files ({fileUrls.length}):
+                    </p>
+                    <div className="space-y-1">
+                      {fileUrls.map((url, index) => (
+                        <div key={index} className="flex items-center gap-2 text-sm">
+                          <a
+                            href={normalizeStorageUrl(url)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-blue-600 hover:underline dark:text-blue-400 flex-1 truncate"
+                          >
+                            View file {index + 1}
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => removeFile(index)}
+                            className="text-red-500 hover:text-red-700 text-xs"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+              {uploadPoster.isPending && (
+                <p className="text-sm text-muted-foreground">Uploading...</p>
+              )}
+              {posterUploadError && (
+                <p className="text-sm text-red-500">{posterUploadError}</p>
+              )}
+              <p className="text-sm text-muted-foreground">
+                Required: Upload at least one event-related material file such as posters, rundowns, etc. (max 50MB per file).
+              </p>
+            </div>
+          )
+        }}
+      </form.Field>
+
+      <form.Field name="zoom_webinar_id">
         {(field) => (
           <div className="space-y-2">
-            <Label>Event Poster</Label>
-            <div className="flex items-center gap-4">
-              <Input
-                type="file"
-                accept="image/*"
-                onChange={handleFileUpload}
-                disabled={uploadPoster.isPending}
-                className="cursor-pointer"
-              />
-              {field.state.value && (
-                <a
-                  href={field.state.value}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm text-blue-600 hover:underline dark:text-blue-400"
-                >
-                  View uploaded poster
-                </a>
-              )}
-            </div>
-            {uploadPoster.isPending && (
-              <p className="text-sm text-muted-foreground">Uploading...</p>
-            )}
-            {posterUploadError && (
-              <p className="text-sm text-red-500">{posterUploadError}</p>
-            )}
+            <Label htmlFor={field.name}>Zoom Webinar ID</Label>
+            <Input
+              id={field.name}
+              type="text"
+              value={field.state.value || ''}
+              onChange={(e) => field.handleChange(e.target.value)}
+              placeholder="e.g., 123456789"
+            />
             <p className="text-sm text-muted-foreground">
-              Optional: Upload an event poster image (max 50MB). You can submit the form without a poster.
+              Optional: Enter the Zoom webinar ID if this is an online event.
             </p>
           </div>
         )}

@@ -7,14 +7,14 @@ interface ProtectedRouteProps {
 }
 
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
-    const { user, loading, isVendor } = useVendorAuth()
+    const { user, loading, isAuthenticated } = useVendorAuth()
     const location = useLocation()
 
     useEffect(() => {
-        if (!loading && (!user || !isVendor())) {
-            // User is not authenticated or not a vendor
+        if (!loading && !isAuthenticated()) {
+            // User is not authenticated
         }
-    }, [user, loading, isVendor])
+    }, [user, loading, isAuthenticated])
 
     if (loading) {
         return (
@@ -27,7 +27,7 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
         )
     }
 
-    if (!user || !isVendor()) {
+    if (!isAuthenticated()) {
         return <Navigate to="/vendor/login" state={{ from: location }} replace />
     }
 

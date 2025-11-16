@@ -32,9 +32,20 @@ serve(async (req) => {
   }
 
   try {
+    // Get public Supabase URL for generating public URLs
+    // Use PUBLIC_SUPABASE_URL if available, otherwise fall back to SUPABASE_URL
+    // PUBLIC_SUPABASE_URL should be set to the public-facing URL (e.g., https://supabase.hkra.org.hk)
+    const PUBLIC_SUPABASE_URL = Deno.env.get('PUBLIC_SUPABASE_URL') || SUPABASE_URL
+
     // Create Supabase client with service role key to bypass RLS
     const supabaseClient = createClient(
       SUPABASE_URL,
+      SUPABASE_SERVICE_ROLE_KEY,
+    )
+
+    // Create a separate client with public URL for generating public URLs
+    const publicUrlClient = createClient(
+      PUBLIC_SUPABASE_URL,
       SUPABASE_SERVICE_ROLE_KEY,
     )
 
@@ -95,61 +106,137 @@ serve(async (req) => {
       )
     }
 
-    // Parse form data
+    // Parse form data - support multiple files
     const formData = await req.formData()
-    const file = formData.get('file') as File
+    const files = formData.getAll('files') as File[]
 
-    if (!file) {
+    // Support single file for backward compatibility
+    if (files.length === 0) {
+      const singleFile = formData.get('file') as File
+      if (singleFile) {
+        files.push(singleFile)
+      }
+    }
+
+    if (files.length === 0) {
       return new Response(
-        JSON.stringify({ error: 'File is required' }),
+        JSON.stringify({ error: 'At least one file is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Validate file type
-    if (!ALLOWED_POSTER_TYPES.includes(file.type)) {
+    // Validate and upload all files
+    const uploadedUrls: string[] = []
+    const errors: string[] = []
+
+    for (const file of files) {
+      // Validate file type
+      if (!ALLOWED_POSTER_TYPES.includes(file.type)) {
+        errors.push(`${file.name}: Invalid file type. Only image files (JPEG, PNG, GIF, WebP) are allowed.`)
+        continue
+      }
+
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE) {
+        errors.push(`${file.name}: File size exceeds 50MB limit`)
+        continue
+      }
+
+      try {
+        // Generate file path
+        const fileExt = file.name.split('.').pop() || 'jpg'
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
+        const filePath = `${vendor.id}/${fileName}`
+
+        // Upload file to storage using service role client
+        const fileBuffer = await file.arrayBuffer()
+        const { error: uploadError } = await supabaseClient.storage
+          .from('vendor-posters')
+          .upload(filePath, fileBuffer, {
+            contentType: file.type,
+            upsert: false,
+          })
+
+        if (uploadError) {
+          console.error('Storage upload error:', uploadError)
+          errors.push(`${file.name}: Upload failed - ${uploadError.message}`)
+          continue
+        }
+
+        // Since the bucket is private, we need to create a signed URL instead of a public URL
+        // Signed URLs expire after a set time, so we use a long expiration (1 year = 31536000 seconds)
+        const { data: signedUrlData, error: signedUrlError } = await supabaseClient.storage
+          .from('vendor-posters')
+          .createSignedUrl(filePath, 31536000) // 1 year expiration
+
+        if (signedUrlError || !signedUrlData) {
+          console.error('Failed to create signed URL:', signedUrlError)
+          // Fallback to public URL if signed URL creation fails
+          const { data: urlData } = publicUrlClient.storage
+            .from('vendor-posters')
+            .getPublicUrl(filePath)
+
+          uploadedUrls.push(urlData.publicUrl)
+          continue
+        }
+
+        // Normalize the signed URL to ensure it uses the public URL, not internal hostnames
+        let fileUrl = signedUrlData.signedUrl
+
+        // Always check and normalize URLs that contain internal hostnames
+        try {
+          const urlObj = new URL(fileUrl)
+          const isInternalHostname =
+            urlObj.hostname === 'kong' ||
+            urlObj.hostname === 'localhost' ||
+            urlObj.hostname.includes('internal') ||
+            urlObj.hostname.startsWith('127.') ||
+            urlObj.hostname.startsWith('192.168.') ||
+            urlObj.hostname.startsWith('10.')
+
+          if (isInternalHostname) {
+            // If PUBLIC_SUPABASE_URL is set and different, use it
+            if (PUBLIC_SUPABASE_URL && PUBLIC_SUPABASE_URL !== SUPABASE_URL) {
+              const publicUrlObj = new URL(PUBLIC_SUPABASE_URL)
+              urlObj.hostname = publicUrlObj.hostname
+              urlObj.port = publicUrlObj.port || ''
+              urlObj.protocol = publicUrlObj.protocol
+              fileUrl = urlObj.toString()
+            } else {
+              // If PUBLIC_SUPABASE_URL is not set, try to construct from SUPABASE_URL
+              // by replacing internal hostname patterns
+              // This is a fallback - ideally PUBLIC_SUPABASE_URL should be set
+              console.warn('PUBLIC_SUPABASE_URL not set, URL may contain internal hostname:', fileUrl)
+              // Keep original URL but log warning
+            }
+          }
+        } catch (e) {
+          // If URL parsing fails, log and continue with original URL
+          console.warn('Failed to normalize URL:', e)
+        }
+
+        uploadedUrls.push(fileUrl)
+      } catch (error) {
+        errors.push(`${file.name}: ${error.message}`)
+      }
+    }
+
+    // Return results
+    if (uploadedUrls.length === 0) {
       return new Response(
-        JSON.stringify({ error: 'Invalid file type. Only image files (JPEG, PNG, GIF, WebP) are allowed.' }),
+        JSON.stringify({
+          error: 'Failed to upload files',
+          details: errors,
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-
-    // Validate file size
-    if (file.size > MAX_FILE_SIZE) {
-      return new Response(
-        JSON.stringify({ error: 'File size exceeds 50MB limit' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Generate file path
-    const fileExt = file.name.split('.').pop() || 'jpg'
-    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
-    const filePath = `${vendor.id}/${fileName}`
-
-    // Upload file to storage using service role client
-    const fileBuffer = await file.arrayBuffer()
-    const { error: uploadError } = await supabaseClient.storage
-      .from('vendor-posters')
-      .upload(filePath, fileBuffer, {
-        contentType: file.type,
-        upsert: false,
-      })
-
-    if (uploadError) {
-      console.error('Storage upload error:', uploadError)
-      throw uploadError
-    }
-
-    // Get public URL
-    const { data: urlData } = supabaseClient.storage
-      .from('vendor-posters')
-      .getPublicUrl(filePath)
 
     return new Response(
       JSON.stringify({
         success: true,
-        fileUrl: urlData.publicUrl,
+        fileUrls: uploadedUrls, // Return array of URLs
+        errors: errors.length > 0 ? errors : undefined, // Include any errors if some files failed
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

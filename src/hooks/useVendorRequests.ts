@@ -89,9 +89,9 @@ export function useUploadAttendance() {
 
 export function useUploadPoster() {
   return useMutation({
-    mutationFn: (file: File) => vendorService.uploadPoster(file),
+    mutationFn: (files: File[]) => vendorService.uploadPoster(files),
     onError: (error: Error) => {
-      toast.error(error.message || 'Failed to upload poster')
+      toast.error(error.message || 'Failed to upload files')
     },
   })
 }

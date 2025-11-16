@@ -6,7 +6,7 @@ import { useVendorRequest, useUpdateVendorRequest } from '@/hooks/useVendorReque
 import { ArrowLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { format } from 'date-fns'
-import { ThemeToggle } from '@/components/ThemeToggle'
+import { HKRAHeader } from '@/components/vendor/HKRAHeader'
 
 export function RequestEdit() {
   const { id } = useParams<{ id: string }>()
@@ -47,17 +47,15 @@ export function RequestEdit() {
   if (request.status !== 'pending') {
     return (
       <div className="min-h-screen bg-background">
-        <header className="border-b bg-card">
-          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-            <Link to={`/vendor/request/${id}`}>
-              <Button variant="ghost" size="sm" className="text-foreground">
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Request
-              </Button>
-            </Link>
-            <ThemeToggle />
-          </div>
-        </header>
+        <HKRAHeader />
+        <div className="container mx-auto px-4 py-4 border-b">
+          <Link to={`/vendor/request/${id}`}>
+            <Button variant="ghost" size="sm">
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Request
+            </Button>
+          </Link>
+        </div>
         <main className="container mx-auto px-4 py-8">
           <Card className="max-w-3xl mx-auto">
             <CardHeader>
@@ -76,28 +74,30 @@ export function RequestEdit() {
     event_name: request.event_name,
     event_start_date: request.event_start_date ? new Date(request.event_start_date) : undefined,
     event_end_date: request.event_end_date ? new Date(request.event_end_date) : undefined,
-    expected_cpd_points: request.expected_cpd_points,
     vendor_company_name: request.vendor_company_name,
     contact_name: request.contact_name,
     contact_email: request.contact_email,
     contact_phone: request.contact_phone,
-    poster_file_url: request.poster_file_url,
+    poster_file_url: Array.isArray(request.poster_file_url)
+      ? request.poster_file_url
+      : request.poster_file_url
+        ? [request.poster_file_url]
+        : [],
+    zoom_webinar_id: request.zoom_webinar_id,
     expected_promotion_date: request.expected_promotion_date ? new Date(request.expected_promotion_date) : undefined,
   }
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to={`/vendor/request/${id}`}>
-            <Button variant="ghost" size="sm">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Request
-            </Button>
-          </Link>
-          <ThemeToggle />
-        </div>
-      </header>
+      <HKRAHeader />
+      <div className="container mx-auto px-4 py-4 border-b">
+        <Link to={`/vendor/request/${id}`}>
+          <Button variant="ghost" size="sm">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Request
+          </Button>
+        </Link>
+      </div>
 
       <main className="container mx-auto px-4 py-8">
         <Card className="max-w-3xl mx-auto">

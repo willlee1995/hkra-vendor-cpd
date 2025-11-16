@@ -17,12 +17,13 @@ export interface VendorRequest {
   event_name: string
   event_start_date: string
   event_end_date: string
-  expected_cpd_points: number
+  expected_cpd_points?: number | null
   vendor_company_name: string
   contact_name: string
   contact_email: string
   contact_phone?: string
-  poster_file_url?: string
+  poster_file_url?: string[] // Array of URLs for event-related materials
+  zoom_webinar_id?: string // Optional Zoom webinar ID
   expected_promotion_date?: string
   status: VendorRequestStatus
   admin_notes?: string
@@ -49,12 +50,12 @@ export interface CreateVendorRequestInput {
   event_name: string
   event_start_date: string
   event_end_date: string
-  expected_cpd_points: number
   vendor_company_name?: string
   contact_name?: string
   contact_email?: string
   contact_phone?: string
-  poster_file_url?: string
+  poster_file_url?: string[] // Array of URLs for event-related materials
+  zoom_webinar_id?: string
   expected_promotion_date?: string
 }
 
@@ -67,8 +68,11 @@ export interface UpdateVendorRequestInput {
   contact_name?: string
   contact_email?: string
   contact_phone?: string
-  poster_file_url?: string
+  poster_file_url?: string[] // Array of URLs for event-related materials
   expected_promotion_date?: string
+  status?: VendorRequestStatus // Admins can update status
+  admin_notes?: string // Admins can add notes
+  rejection_reason?: string // Admins can add rejection reason
 }
 
 export interface VendorRequestsFilter {

@@ -145,13 +145,15 @@ export const vendorApiClient = {
     return response.json()
   },
 
-  // Upload poster file
-  async uploadPoster(file: File): Promise<string> {
+  // Upload poster files (supports multiple files)
+  async uploadPoster(files: File[]): Promise<string[]> {
     const headers = await getAuthHeaders()
 
     // Create FormData for file upload
     const formData = new FormData()
-    formData.append('file', file)
+    files.forEach(file => {
+      formData.append('files', file)
+    })
 
     const response = await fetch(`${EDGE_FUNCTION_URL}/vendor-upload-poster`, {
       method: 'POST',
@@ -164,7 +166,7 @@ export const vendorApiClient = {
 
     if (!response.ok) {
       const error = await response.json()
-      const errorMessage = error.error || 'Failed to upload poster'
+      const errorMessage = error.error || 'Failed to upload files'
 
       // Provide helpful message for vendor record not found
       if (errorMessage.includes('Vendor record not found') || response.status === 403) {
@@ -177,7 +179,14 @@ export const vendorApiClient = {
     }
 
     const result = await response.json()
-    return result.fileUrl
+    // Support both old format (fileUrl) and new format (fileUrls)
+    if (result.fileUrls) {
+      return result.fileUrls
+    } else if (result.fileUrl) {
+      return [result.fileUrl]
+    } else {
+      throw new Error('Invalid response from server')
+    }
   },
 }
 

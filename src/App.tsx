@@ -5,6 +5,8 @@ import { Dashboard } from '@/pages/vendor/Dashboard'
 import { RequestNew } from '@/pages/vendor/RequestNew'
 import { RequestEdit } from '@/pages/vendor/RequestEdit'
 import { RequestDetail } from '@/pages/vendor/RequestDetail'
+import { AdminDashboard } from '@/pages/admin/AdminDashboard'
+import { AdminRequestDetail } from '@/pages/admin/AdminRequestDetail'
 
 function App() {
   return (
@@ -40,6 +42,22 @@ function App() {
           element={
             <ProtectedRoute>
               <RequestEdit />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/dashboard"
+          element={
+            <ProtectedRoute>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/request/:id"
+          element={
+            <ProtectedRoute>
+              <AdminRequestDetail />
             </ProtectedRoute>
           }
         />

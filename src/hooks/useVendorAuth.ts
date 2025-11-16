@@ -41,11 +41,11 @@ export function useVendorAuth() {
 
       if (error) throw error
 
-      // Check if user has vendor role
+      // Check if user has vendor or admin role
       const role = data.user?.user_metadata?.role
-      if (role !== 'vendor') {
+      if (role !== 'vendor' && role !== 'admin') {
         await supabase.auth.signOut()
-        throw new Error('Access denied. Vendor account required.')
+        throw new Error('Access denied. Vendor or Admin account required.')
       }
 
       return data
@@ -71,12 +71,22 @@ export function useVendorAuth() {
     return user?.user_metadata?.role === 'vendor'
   }
 
+  const isAdmin = () => {
+    return user?.user_metadata?.role === 'admin'
+  }
+
+  const isAuthenticated = () => {
+    return !!user && (isVendor() || isAdmin())
+  }
+
   return {
     user,
     loading,
     signIn,
     signOut,
     isVendor,
+    isAdmin,
+    isAuthenticated,
   }
 }
 

@@ -1,29 +1,28 @@
-import { Link } from 'react-router-dom'
+import { useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { VendorRequestTable } from '@/components/vendor/VendorRequestTable'
 import { useVendorRequests } from '@/hooks/useVendorRequests'
-import { Plus } from 'lucide-react'
 import { useVendorAuth } from '@/hooks/useVendorAuth'
-import { ThemeToggle } from '@/components/ThemeToggle'
+import { Plus } from 'lucide-react'
+import { HKRAHeader } from '@/components/vendor/HKRAHeader'
 
 export function Dashboard() {
   const { data: requests, isLoading } = useVendorRequests()
-  const { signOut } = useVendorAuth()
+  const { isAdmin } = useVendorAuth()
+  const navigate = useNavigate()
+
+  // Redirect admins to admin dashboard
+  useEffect(() => {
+    if (isAdmin()) {
+      navigate('/admin/dashboard', { replace: true })
+    }
+  }, [isAdmin, navigate])
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
-        <div className="container mx-auto flex items-center justify-between px-4 py-4">
-          <h1 className="text-2xl font-bold text-foreground">Vendor Portal</h1>
-          <div className="flex items-center gap-4">
-            <ThemeToggle />
-            <Button variant="outline" onClick={() => signOut()} className="text-foreground">
-              Sign Out
-            </Button>
-          </div>
-        </div>
-      </header>
+      <HKRAHeader showSignOut />
 
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6 flex items-center justify-between">

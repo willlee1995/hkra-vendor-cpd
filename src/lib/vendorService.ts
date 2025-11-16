@@ -38,9 +38,9 @@ export const vendorService = {
     return result.request
   },
 
-  // Upload poster file
-  uploadPoster: async (file: File): Promise<string> => {
-    return vendorApiClient.uploadPoster(file)
+  // Upload poster files (supports multiple files)
+  uploadPoster: async (files: File[]): Promise<string[]> => {
+    return vendorApiClient.uploadPoster(files)
   },
 }
 

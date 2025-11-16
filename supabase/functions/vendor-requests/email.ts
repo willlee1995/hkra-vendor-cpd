@@ -55,7 +55,7 @@ export function generateRequestorConfirmationEmail(request: {
   event_name: string
   event_start_date: string
   event_end_date: string
-  expected_cpd_points: number
+  expected_cpd_points: number | null
   contact_name: string
   request_id: string
 }): string {
@@ -91,7 +91,9 @@ export function generateRequestorConfirmationEmail(request: {
         <h2 style="margin-top: 0; color: #2563eb;">Request Details</h2>
         <p><strong>Event Name:</strong> ${request.event_name}</p>
         <p><strong>Event Dates:</strong> ${startDate} - ${endDate}</p>
-        <p><strong>Expected CPD Points:</strong> ${request.expected_cpd_points}</p>
+        ${request.expected_cpd_points
+          ? '<p><strong>CPD Points:</strong> ' + request.expected_cpd_points + '</p>'
+          : '<p><strong>CPD Points:</strong> To be determined by admin</p>'}
         <p><strong>Request ID:</strong> ${request.request_id}</p>
       </div>
 
@@ -118,7 +120,7 @@ export function generateAdminNotificationEmail(request: {
   event_name: string
   event_start_date: string
   event_end_date: string
-  expected_cpd_points: number
+  expected_cpd_points: number | null
   vendor_company_name: string
   contact_name: string
   contact_email: string
@@ -164,7 +166,9 @@ export function generateAdminNotificationEmail(request: {
         <p><strong>Request ID:</strong> ${request.request_id}</p>
         <p><strong>Event Name:</strong> ${request.event_name}</p>
         <p><strong>Event Dates:</strong> ${startDate} - ${endDate}</p>
-        <p><strong>Expected CPD Points:</strong> ${request.expected_cpd_points}</p>
+        ${request.expected_cpd_points
+          ? '<p><strong>CPD Points:</strong> ' + request.expected_cpd_points + '</p>'
+          : '<p><strong>CPD Points:</strong> To be determined by admin</p>'}
         <p><strong>Submitted:</strong> ${createdAt}</p>
       </div>
 

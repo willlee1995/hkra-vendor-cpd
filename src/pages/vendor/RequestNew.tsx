@@ -6,7 +6,7 @@ import { useCreateVendorRequest } from '@/hooks/useVendorRequests'
 import { useVendor } from '@/hooks/useVendor'
 import { ArrowLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { ThemeToggle } from '@/components/ThemeToggle'
+import { HKRAHeader } from '@/components/vendor/HKRAHeader'
 
 export function RequestNew() {
   const navigate = useNavigate()
@@ -34,17 +34,15 @@ export function RequestNew() {
 
   return (
     <div className="min-h-screen bg-background">
-      <header className="border-b bg-card">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link to="/vendor/dashboard">
-            <Button variant="ghost" size="sm" className="text-foreground">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Dashboard
-            </Button>
-          </Link>
-          <ThemeToggle />
-        </div>
-      </header>
+      <HKRAHeader />
+      <div className="container mx-auto px-4 py-4 border-b">
+        <Link to="/vendor/dashboard">
+          <Button variant="ghost" size="sm">
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Dashboard
+          </Button>
+        </Link>
+      </div>
 
       <main className="container mx-auto px-4 py-8">
         <Card className="max-w-3xl mx-auto">

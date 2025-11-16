@@ -22,9 +22,10 @@ import type { VendorRequest } from '@/lib/vendorTypes'
 interface VendorRequestTableProps {
   data: VendorRequest[]
   isLoading?: boolean
+  isAdmin?: boolean // If true, links will go to admin pages
 }
 
-export function VendorRequestTable({ data, isLoading }: VendorRequestTableProps) {
+export function VendorRequestTable({ data, isLoading, isAdmin = false }: VendorRequestTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
   const [statusFilter, setStatusFilter] = useState<string>('all')
@@ -47,6 +48,23 @@ export function VendorRequestTable({ data, isLoading }: VendorRequestTableProps)
         <div className="font-medium">{row.getValue('event_name')}</div>
       ),
     },
+    ...(isAdmin ? [{
+      accessorKey: 'vendor_company_name',
+      header: ({ column }: any) => {
+        return (
+          <Button
+            variant="ghost"
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          >
+            Vendor Company
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </Button>
+        )
+      },
+      cell: ({ row }: any) => (
+        <div className="text-sm">{row.getValue('vendor_company_name')}</div>
+      ),
+    } as ColumnDef<VendorRequest>] : []),
     {
       accessorKey: 'event_start_date',
       header: ({ column }) => {
@@ -104,8 +122,9 @@ export function VendorRequestTable({ data, isLoading }: VendorRequestTableProps)
       header: 'Actions',
       cell: ({ row }) => {
         const request = row.original
+        const detailPath = isAdmin ? `/admin/request/${request.id}` : `/vendor/request/${request.id}`
         return (
-          <Link to={`/vendor/request/${request.id}`}>
+          <Link to={detailPath}>
             <Button variant="outline" size="sm">
               <Eye className="mr-2 h-4 w-4" />
               View
