@@ -118,28 +118,43 @@ export const vendorApiClient = {
     return response.json()
   },
 
-  // Upload attendance file
-  async uploadAttendance(requestId: string, file: File): Promise<{ success: boolean; fileUrl: string; request: VendorRequest }> {
+  // Upload attendance files (supports multiple files)
+  async uploadAttendance(requestId: string, files: File[]): Promise<{ success: boolean; fileUrls: string[]; allFileUrls: string[]; errors?: string[]; request: VendorRequest }> {
     const { data: { session } } = await supabase.auth.getSession()
     if (!session) {
       throw new Error('Not authenticated')
     }
 
     const formData = new FormData()
-    formData.append('file', file)
+    files.forEach(file => {
+      formData.append('files', file)
+    })
     formData.append('requestId', requestId)
+
+    console.log('Uploading attendance:', { filesCount: files.length, requestId })
 
     const response = await fetch(`${EDGE_FUNCTION_URL}/vendor-upload`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${session.access_token}`,
+        // Don't set Content-Type - let browser set it with boundary for FormData
       },
       body: formData,
     })
 
     if (!response.ok) {
       const error = await response.json()
-      throw new Error(error.error || 'Failed to upload file')
+      console.error('Upload error response:', error)
+      // Show detailed error information if available
+      if (error.details) {
+        const detailsMsg = typeof error.details === 'object'
+          ? JSON.stringify(error.details)
+          : Array.isArray(error.details)
+            ? error.details.join(', ')
+            : error.details
+        throw new Error(`${error.error || 'Failed to upload files'}: ${detailsMsg}`)
+      }
+      throw new Error(error.error || 'Failed to upload files')
     }
 
     return response.json()

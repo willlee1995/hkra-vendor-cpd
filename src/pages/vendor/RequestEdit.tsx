@@ -74,6 +74,8 @@ export function RequestEdit() {
     event_name: request.event_name,
     event_start_date: request.event_start_date ? new Date(request.event_start_date) : undefined,
     event_end_date: request.event_end_date ? new Date(request.event_end_date) : undefined,
+    event_start_time: request.event_start_time || '',
+    event_end_time: request.event_end_time || '',
     vendor_company_name: request.vendor_company_name,
     contact_name: request.contact_name,
     contact_email: request.contact_email,

@@ -18,11 +18,12 @@ export function HKRAHeader({ showSignOut = false }: HKRAHeaderProps) {
     <header className="sticky top-0 z-50 w-full border-b bg-card shadow-sm">
       <div className="container mx-auto flex h-16 items-center justify-between px-4">
         <div className="flex items-center gap-4">
-          {/* HKRA Logo Placeholder - Replace with actual logo */}
           <Link to={dashboardPath} className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded bg-primary text-primary-foreground font-bold text-lg">
-              HKRA
-            </div>
+            <img
+              src="/hkra.webp"
+              alt="The Hong Kong Radiographers' Association"
+              className="h-10 w-auto"
+            />
             <div className="flex flex-col">
               <span className="text-lg font-bold text-foreground leading-tight">
                 The Hong Kong Radiographers' Association

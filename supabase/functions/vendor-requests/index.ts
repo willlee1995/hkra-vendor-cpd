@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { sendEmail, generateRequestorConfirmationEmail, generateAdminNotificationEmail } from './email.ts'
+import { sendEmail, generateRequestorConfirmationEmail, generateAdminNotificationEmail, generateApprovalEmail, generateRejectionEmail, generateUnapprovalEmail } from './email.ts'
 
 // Get Supabase credentials from environment variables
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
@@ -188,7 +188,7 @@ serve(async (req) => {
         const body = await req.json()
 
         // Validate required fields
-        if (!body.event_name || !body.event_start_date || !body.event_end_date) {
+        if (!body.event_name || !body.event_start_date || !body.event_end_date || !body.event_start_time || !body.event_end_time) {
           return new Response(
             JSON.stringify({ error: 'Missing required fields' }),
             { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -231,11 +231,14 @@ serve(async (req) => {
             event_name: body.event_name,
             event_start_date: body.event_start_date,
             event_end_date: body.event_end_date,
+            event_start_time: body.event_start_time,
+            event_end_time: body.event_end_time,
             expected_cpd_points: cpdPoints || null,
-            vendor_company_name: vendorDetails?.company_name || body.vendor_company_name,
-            contact_name: vendorDetails?.contact_name || body.contact_name,
-            contact_email: vendorDetails?.contact_email || body.contact_email,
-            contact_phone: vendorDetails?.contact_phone || body.contact_phone,
+            // Prioritize form values over vendor details since user explicitly edited them
+            vendor_company_name: body.vendor_company_name || vendorDetails?.company_name,
+            contact_name: body.contact_name || vendorDetails?.contact_name,
+            contact_email: body.contact_email || vendorDetails?.contact_email,
+            contact_phone: body.contact_phone || vendorDetails?.contact_phone,
             poster_file_url: body.poster_file_url || null,
             expected_promotion_date: body.expected_promotion_date || null,
             status: 'pending',
@@ -258,6 +261,8 @@ serve(async (req) => {
                 event_name: newRequest.event_name,
                 event_start_date: newRequest.event_start_date,
                 event_end_date: newRequest.event_end_date,
+                event_start_time: newRequest.event_start_time || undefined,
+                event_end_time: newRequest.event_end_time || undefined,
                     expected_cpd_points: newRequest.expected_cpd_points ? parseFloat(String(newRequest.expected_cpd_points)) : null,
                 contact_name: newRequest.contact_name,
                 request_id: newRequest.id,
@@ -296,6 +301,8 @@ serve(async (req) => {
                     event_name: newRequest.event_name,
                     event_start_date: newRequest.event_start_date,
                     event_end_date: newRequest.event_end_date,
+                    event_start_time: newRequest.event_start_time || undefined,
+                    event_end_time: newRequest.event_end_time || undefined,
                     expected_cpd_points: newRequest.expected_cpd_points ? parseFloat(String(newRequest.expected_cpd_points)) : null,
                     vendor_company_name: newRequest.vendor_company_name,
                     contact_name: newRequest.contact_name,
@@ -402,6 +409,19 @@ serve(async (req) => {
           updateData.approved_at = new Date().toISOString()
         }
 
+        // If admin is unapproving (changing from approved to pending), clear approved_by and approved_at
+        if (isAdmin && existingRequest.status === 'approved' && updateBody.status === 'pending') {
+          updateData.approved_by = null
+          updateData.approved_at = null
+        }
+
+        // If admin is unrejecting (changing from rejected to approved), clear rejection_reason and set approval fields
+        if (isAdmin && existingRequest.status === 'rejected' && updateBody.status === 'approved') {
+          updateData.rejection_reason = null
+          updateData.approved_by = user.id
+          updateData.approved_at = new Date().toISOString()
+        }
+
         // Build update query
         let updateQuery = supabaseClient
           .from('vendor_requests')
@@ -419,6 +439,104 @@ serve(async (req) => {
 
         if (updateError) {
           throw updateError
+        }
+
+        // Manually create status history entry if status changed
+        // This is needed because the trigger uses auth.uid() which doesn't work with service role
+        if (updateBody.status && existingRequest.status !== updateBody.status) {
+          try {
+            await supabaseClient
+              .from('vendor_request_status_history')
+              .insert({
+                request_id: requestId,
+                status: updateBody.status,
+                changed_by: user.id,
+                notes: updateBody.status === 'rejected'
+                  ? updateBody.rejection_reason || null
+                  : updateBody.status === 'approved'
+                  ? updateBody.admin_notes || null
+                  : null,
+              })
+          } catch (historyError) {
+            // Log error but don't fail the update
+            console.error('Failed to create status history:', historyError)
+          }
+        }
+
+        // Send email notification to requestor if status changed to approved, rejected, or unapproved
+        if (updateBody.status && existingRequest.status !== updateBody.status && updatedRequest.contact_email) {
+          try {
+            // Check specific transitions first (more specific conditions)
+            if (updateBody.status === 'approved' && existingRequest.status === 'rejected') {
+              // Unrejection: changing from rejected to approved
+              await sendEmail({
+                to: updatedRequest.contact_email,
+                subject: `CPD Request Approved - ${updatedRequest.event_name}`,
+                html: generateApprovalEmail({
+                  event_name: updatedRequest.event_name,
+                  event_start_date: updatedRequest.event_start_date,
+                  event_end_date: updatedRequest.event_end_date,
+                  event_start_time: updatedRequest.event_start_time || undefined,
+                  event_end_time: updatedRequest.event_end_time || undefined,
+                  expected_cpd_points: updatedRequest.expected_cpd_points ? parseFloat(String(updatedRequest.expected_cpd_points)) : null,
+                  contact_name: updatedRequest.contact_name,
+                  request_id: updatedRequest.id,
+                  admin_notes: updateBody.admin_notes || null,
+                }),
+              })
+            } else if (updateBody.status === 'pending' && existingRequest.status === 'approved') {
+              // Unapproval: changing from approved back to pending
+              await sendEmail({
+                to: updatedRequest.contact_email,
+                subject: `CPD Request Status Update - ${updatedRequest.event_name}`,
+                html: generateUnapprovalEmail({
+                  event_name: updatedRequest.event_name,
+                  event_start_date: updatedRequest.event_start_date,
+                  event_end_date: updatedRequest.event_end_date,
+                  event_start_time: updatedRequest.event_start_time || undefined,
+                  event_end_time: updatedRequest.event_end_time || undefined,
+                  contact_name: updatedRequest.contact_name,
+                  request_id: updatedRequest.id,
+                  admin_notes: updateBody.admin_notes || null,
+                }),
+              })
+            } else if (updateBody.status === 'approved') {
+              // General approval (from pending to approved)
+              await sendEmail({
+                to: updatedRequest.contact_email,
+                subject: `CPD Request Approved - ${updatedRequest.event_name}`,
+                html: generateApprovalEmail({
+                  event_name: updatedRequest.event_name,
+                  event_start_date: updatedRequest.event_start_date,
+                  event_end_date: updatedRequest.event_end_date,
+                  event_start_time: updatedRequest.event_start_time || undefined,
+                  event_end_time: updatedRequest.event_end_time || undefined,
+                  expected_cpd_points: updatedRequest.expected_cpd_points ? parseFloat(String(updatedRequest.expected_cpd_points)) : null,
+                  contact_name: updatedRequest.contact_name,
+                  request_id: updatedRequest.id,
+                  admin_notes: updateBody.admin_notes || null,
+                }),
+              })
+            } else if (updateBody.status === 'rejected') {
+              await sendEmail({
+                to: updatedRequest.contact_email,
+                subject: `CPD Request Status Update - ${updatedRequest.event_name}`,
+                html: generateRejectionEmail({
+                  event_name: updatedRequest.event_name,
+                  event_start_date: updatedRequest.event_start_date,
+                  event_end_date: updatedRequest.event_end_date,
+                  event_start_time: updatedRequest.event_start_time || undefined,
+                  event_end_time: updatedRequest.event_end_time || undefined,
+                  contact_name: updatedRequest.contact_name,
+                  request_id: updatedRequest.id,
+                  rejection_reason: updateBody.rejection_reason || null,
+                }),
+              })
+            }
+          } catch (emailError) {
+            // Log error but don't fail the update
+            console.error('Failed to send status notification email:', emailError)
+          }
         }
 
         return new Response(
@@ -467,6 +585,24 @@ serve(async (req) => {
 
         if (withdrawError) {
           throw withdrawError
+        }
+
+        // Manually create status history entry for withdrawal
+        // This is needed because the trigger uses auth.uid() which doesn't work with service role
+        if (requestToWithdraw.status !== 'withdrawn') {
+          try {
+            await supabaseClient
+              .from('vendor_request_status_history')
+              .insert({
+                request_id: requestId,
+                status: 'withdrawn',
+                changed_by: user.id,
+                notes: null,
+              })
+          } catch (historyError) {
+            // Log error but don't fail the withdrawal
+            console.error('Failed to create status history for withdrawal:', historyError)
+          }
         }
 
         return new Response(

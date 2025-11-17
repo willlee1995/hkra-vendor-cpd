@@ -32,9 +32,9 @@ export const vendorService = {
     return vendorApiClient.withdrawRequest(id)
   },
 
-  // Upload attendance file
-  uploadAttendance: async (requestId: string, file: File): Promise<VendorRequest> => {
-    const result = await vendorApiClient.uploadAttendance(requestId, file)
+  // Upload attendance files (supports multiple files)
+  uploadAttendance: async (requestId: string, files: File[]): Promise<VendorRequest> => {
+    const result = await vendorApiClient.uploadAttendance(requestId, files)
     return result.request
   },
 

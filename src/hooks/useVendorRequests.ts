@@ -74,15 +74,15 @@ export function useUploadAttendance() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({ requestId, file }: { requestId: string; file: File }) =>
-      vendorService.uploadAttendance(requestId, file),
+    mutationFn: ({ requestId, files }: { requestId: string; files: File[] }) =>
+      vendorService.uploadAttendance(requestId, files),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['vendor-requests'] })
       queryClient.invalidateQueries({ queryKey: ['vendor-request', data.id] })
-      toast.success('Attendance file uploaded successfully')
+      toast.success('Attendance file(s) uploaded successfully')
     },
     onError: (error: Error) => {
-      toast.error(error.message || 'Failed to upload attendance file')
+      toast.error(error.message || 'Failed to upload attendance file(s)')
     },
   })
 }

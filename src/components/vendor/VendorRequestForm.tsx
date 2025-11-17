@@ -19,6 +19,8 @@ const requestSchema = z.object({
   event_name: z.string().min(1, 'Event name is required'),
   event_start_date: z.date({ required_error: 'Start date is required' }),
   event_end_date: z.date({ required_error: 'End date is required' }),
+  event_start_time: z.string().min(1, 'Start time is required'),
+  event_end_time: z.string().min(1, 'End time is required'),
   vendor_company_name: z.string().min(1, 'Company name is required').optional().or(z.literal('')),
   contact_name: z.string().min(1, 'Contact name is required').optional().or(z.literal('')),
   contact_email: z.preprocess(
@@ -48,7 +50,7 @@ const requestSchema = z.object({
 })
 
 interface VendorRequestFormProps {
-  initialValues?: Partial<CreateVendorRequestInput & { event_start_date?: Date; event_end_date?: Date; expected_promotion_date?: Date }>
+  initialValues?: Partial<CreateVendorRequestInput & { event_start_date?: Date; event_end_date?: Date; expected_promotion_date?: Date; event_start_time?: string; event_end_time?: string }>
   onSubmit: (values: CreateVendorRequestInput | UpdateVendorRequestInput) => Promise<void>
   isLoading?: boolean
 }
@@ -158,6 +160,8 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
       event_name: initialValues?.event_name || '',
       event_start_date: initialValues?.event_start_date || undefined,
       event_end_date: initialValues?.event_end_date || undefined,
+      event_start_time: initialValues?.event_start_time || '',
+      event_end_time: initialValues?.event_end_time || '',
       vendor_company_name: initialValues?.vendor_company_name || '',
       contact_name: initialValues?.contact_name || '',
       contact_email: initialValues?.contact_email || '',
@@ -177,7 +181,7 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
     onSubmit: async ({ value }) => {
       try {
         // Validate required fields
-        if (!value.event_name || !value.event_start_date || !value.event_end_date) {
+        if (!value.event_name || !value.event_start_date || !value.event_end_date || !value.event_start_time || !value.event_end_time) {
           throw new Error('Please fill in all required fields')
         }
 
@@ -185,6 +189,8 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
           event_name: value.event_name,
           event_start_date: value.event_start_date.toISOString().split('T')[0],
           event_end_date: value.event_end_date.toISOString().split('T')[0],
+          event_start_time: value.event_start_time,
+          event_end_time: value.event_end_time,
           vendor_company_name: value.vendor_company_name || undefined,
           contact_name: value.contact_name || undefined,
           contact_email: value.contact_email || undefined,
@@ -278,7 +284,7 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
     setSubmitError(null)
 
     // Mark all required fields as touched so errors will show
-    const requiredFields = ['event_name', 'event_start_date', 'event_end_date']
+    const requiredFields = ['event_name', 'event_start_date', 'event_end_date', 'event_start_time', 'event_end_time']
     requiredFields.forEach(fieldName => {
       form.setFieldMeta(fieldName, (prev) => ({ ...prev, isTouched: true }))
     })
@@ -326,12 +332,18 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
     if (!values.event_start_date) {
       missingRequiredFields.push('Event start date')
     }
+    if (!values.event_start_time || values.event_start_time.trim() === '') {
+      missingRequiredFields.push('Event start time')
+    }
     const posterUrls = Array.isArray(values.poster_file_url) ? values.poster_file_url : (values.poster_file_url ? [values.poster_file_url] : [])
     if (posterUrls.length === 0) {
       missingRequiredFields.push('Event related materials')
     }
     if (!values.event_end_date) {
       missingRequiredFields.push('Event end date')
+    }
+    if (!values.event_end_time || values.event_end_time.trim() === '') {
+      missingRequiredFields.push('Event end time')
     }
 
     // Check if validation passed
@@ -348,6 +360,8 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
           event_name: values.event_name,
           event_start_date: valuesForValidation.event_start_date.toISOString().split('T')[0],
           event_end_date: valuesForValidation.event_end_date.toISOString().split('T')[0],
+          event_start_time: values.event_start_time,
+          event_end_time: values.event_end_time,
           expected_cpd_points: values.expected_cpd_points,
           vendor_company_name: values.vendor_company_name || undefined,
           contact_name: values.contact_name || undefined,
@@ -541,6 +555,70 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
               {(() => {
                 const errorMsg = getErrorMessage(field.state.meta.errors)
                 return errorMsg ? (
+                  <p className="text-sm text-red-500">{errorMsg}</p>
+                ) : null
+              })()}
+            </div>
+          )}
+        </form.Field>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <form.Field
+          name="event_start_time"
+          validators={{
+            onChange: zodValidator(z.string().min(1, 'Start time is required')),
+          }}
+        >
+          {(field) => (
+            <div className="space-y-2">
+              <Label htmlFor={field.name}>Event Start Time *</Label>
+              <Input
+                id={field.name}
+                type="time"
+                required
+                step="60"
+                value={field.state.value}
+                onChange={(e) => field.handleChange(e.target.value)}
+                onBlur={field.handleBlur}
+                className="cursor-pointer"
+              />
+              {(() => {
+                const errorMsg = getErrorMessage(field.state.meta.errors, field.state.meta.errorMap)
+                const hasErrors = field.state.meta.errors.length > 0 || (field.state.meta.errorMap && Object.keys(field.state.meta.errorMap).length > 0)
+                const shouldShowError = errorMsg && (field.state.meta.isTouched || hasErrors)
+                return shouldShowError ? (
+                  <p className="text-sm text-red-500">{errorMsg}</p>
+                ) : null
+              })()}
+            </div>
+          )}
+        </form.Field>
+
+        <form.Field
+          name="event_end_time"
+          validators={{
+            onChange: zodValidator(z.string().min(1, 'End time is required')),
+          }}
+        >
+          {(field) => (
+            <div className="space-y-2">
+              <Label htmlFor={field.name}>Event End Time *</Label>
+              <Input
+                id={field.name}
+                type="time"
+                required
+                step="60"
+                value={field.state.value}
+                onChange={(e) => field.handleChange(e.target.value)}
+                onBlur={field.handleBlur}
+                className="cursor-pointer"
+              />
+              {(() => {
+                const errorMsg = getErrorMessage(field.state.meta.errors, field.state.meta.errorMap)
+                const hasErrors = field.state.meta.errors.length > 0 || (field.state.meta.errorMap && Object.keys(field.state.meta.errorMap).length > 0)
+                const shouldShowError = errorMsg && (field.state.meta.isTouched || hasErrors)
+                return shouldShowError ? (
                   <p className="text-sm text-red-500">{errorMsg}</p>
                 ) : null
               })()}

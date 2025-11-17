@@ -6,9 +6,24 @@ import { VendorFileUpload } from '@/components/vendor/VendorFileUpload'
 import { useVendorRequest, useWithdrawVendorRequest } from '@/hooks/useVendorRequests'
 import { ArrowLeft, Edit, Download, Calendar, Mail, Phone, Building } from 'lucide-react'
 import { format } from 'date-fns'
-import { getDisplayableUrl } from '@/lib/storageUtils'
+import { getDisplayableUrl, normalizeStorageUrl, extractStoragePath, getSignedUrl } from '@/lib/storageUtils'
 import { HKRAHeader } from '@/components/vendor/HKRAHeader'
 import { useState, useEffect } from 'react'
+import { toast } from 'sonner'
+
+// Helper function to format time (HH:MM) to 12-hour format
+const formatTime = (time: string | null | undefined): string => {
+  if (!time) return ''
+  try {
+    const [hours, minutes] = time.split(':')
+    const hour = parseInt(hours, 10)
+    const ampm = hour >= 12 ? 'PM' : 'AM'
+    const displayHour = hour % 12 || 12
+    return `${displayHour}:${minutes} ${ampm}`
+  } catch {
+    return time
+  }
+}
 
 export function RequestDetail() {
   const { id } = useParams<{ id: string }>()
@@ -124,14 +139,24 @@ export function RequestDetail() {
                   <p className="text-sm font-medium text-gray-500">Start Date</p>
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-gray-400" />
-                    <p>{format(new Date(request.event_start_date), 'PPP')}</p>
+                    <p>
+                      {format(new Date(request.event_start_date), 'PPP')}
+                      {request.event_start_time && (
+                        <span className="ml-2 text-gray-600">• {formatTime(request.event_start_time)}</span>
+                      )}
+                    </p>
                   </div>
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500">End Date</p>
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-gray-400" />
-                    <p>{format(new Date(request.event_end_date), 'PPP')}</p>
+                    <p>
+                      {format(new Date(request.event_end_date), 'PPP')}
+                      {request.event_end_time && (
+                        <span className="ml-2 text-gray-600">• {formatTime(request.event_end_time)}</span>
+                      )}
+                    </p>
                   </div>
                 </div>
               </div>
@@ -226,31 +251,67 @@ export function RequestDetail() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {request.attendance_file_url ? (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-4">
-                      <p className="text-sm text-gray-600">
-                        Attendance file uploaded on{' '}
-                        {request.attendance_uploaded_at
-                          ? format(new Date(request.attendance_uploaded_at), 'PPP')
-                          : 'N/A'}
-                      </p>
-                      <a
-                        href={request.attendance_file_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <Button variant="outline" size="sm">
-                          <Download className="mr-2 h-4 w-4" />
-                          Download
-                        </Button>
-                      </a>
+                {(() => {
+                  // Normalize attendance_file_url to always be an array (handle migration from string to array)
+                  const attendanceFiles = Array.isArray(request.attendance_file_url)
+                    ? request.attendance_file_url
+                    : request.attendance_file_url
+                      ? [request.attendance_file_url]
+                      : []
+
+                  return attendanceFiles.length > 0 ? (
+                    <div className="space-y-4">
+                      <div className="space-y-2">
+                        <p className="text-sm text-gray-600">
+                          {attendanceFiles.length} attendance file{attendanceFiles.length > 1 ? 's' : ''} uploaded on{' '}
+                          {request.attendance_uploaded_at
+                            ? format(new Date(request.attendance_uploaded_at), 'PPP')
+                            : 'N/A'}
+                        </p>
+                        <div className="space-y-2">
+                          {attendanceFiles.map((url, index) => (
+                          <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                            <span className="text-sm text-gray-700 flex-1">
+                              File {index + 1}
+                            </span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={async () => {
+                                try {
+                                  // Extract path from URL and generate signed URL if needed
+                                  const path = extractStoragePath(url, 'vendor-attendance')
+                                  if (path) {
+                                    const signedUrl = await getSignedUrl('vendor-attendance', path, 3600)
+                                    if (signedUrl) {
+                                      window.open(normalizeStorageUrl(signedUrl), '_blank', 'noopener,noreferrer')
+                                    } else {
+                                      // Fallback to normalized URL
+                                      window.open(normalizeStorageUrl(url), '_blank', 'noopener,noreferrer')
+                                    }
+                                  } else {
+                                    // Fallback to normalized URL
+                                    window.open(normalizeStorageUrl(url), '_blank', 'noopener,noreferrer')
+                                  }
+                                } catch (error) {
+                                  console.error('Error downloading file:', error)
+                                  toast.error('Failed to download file')
+                                }
+                              }}
+                            >
+                              <Download className="mr-2 h-4 w-4" />
+                              Download
+                            </Button>
+                          </div>
+                          ))}
+                        </div>
+                      </div>
+                      <VendorFileUpload requestId={request.id} />
                     </div>
+                  ) : (
                     <VendorFileUpload requestId={request.id} />
-                  </div>
-                ) : (
-                  <VendorFileUpload requestId={request.id} />
-                )}
+                  )
+                })()}
               </CardContent>
             </Card>
           )}

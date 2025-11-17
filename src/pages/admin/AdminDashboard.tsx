@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,19 +9,38 @@ import { useVendorAuth } from '@/hooks/useVendorAuth'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { Badge } from '@/components/ui/badge'
 import { CheckCircle2, XCircle, Clock, FileX } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 export function AdminDashboard() {
   const { data: requests, isLoading } = useVendorRequests()
   const { isAdmin } = useVendorAuth()
   const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined)
+  const [vendorCompanyFilter, setVendorCompanyFilter] = useState<string>('all')
 
   // Set page title for admin
   usePageTitle('HKRA CPD Admin Portal')
 
-  // Filter requests by status
-  const filteredRequests = statusFilter
-    ? requests?.filter((r) => r.status === statusFilter)
-    : requests
+  // Get unique vendor companies
+  const vendorCompanies = useMemo(() => {
+    if (!requests) return []
+    const companies = new Set(requests.map(r => r.vendor_company_name).filter(Boolean))
+    return Array.from(companies).sort()
+  }, [requests])
+
+  // Filter requests by status and vendor company
+  const filteredRequests = useMemo(() => {
+    let filtered = requests || []
+
+    if (statusFilter) {
+      filtered = filtered.filter((r) => r.status === statusFilter)
+    }
+
+    if (vendorCompanyFilter !== 'all') {
+      filtered = filtered.filter((r) => r.vendor_company_name === vendorCompanyFilter)
+    }
+
+    return filtered
+  }, [requests, statusFilter, vendorCompanyFilter])
 
   if (!isAdmin()) {
     return (
@@ -94,43 +113,58 @@ export function AdminDashboard() {
           </Card>
         </div>
 
-        {/* Status Filter */}
-        <div className="mb-4 flex gap-2">
-          <Button
-            variant={statusFilter === undefined ? 'default' : 'outline'}
-            onClick={() => setStatusFilter(undefined)}
-            size="sm"
-          >
-            All
-          </Button>
-          <Button
-            variant={statusFilter === 'pending' ? 'default' : 'outline'}
-            onClick={() => setStatusFilter('pending')}
-            size="sm"
-          >
-            Pending
-          </Button>
-          <Button
-            variant={statusFilter === 'approved' ? 'default' : 'outline'}
-            onClick={() => setStatusFilter('approved')}
-            size="sm"
-          >
-            Approved
-          </Button>
-          <Button
-            variant={statusFilter === 'rejected' ? 'default' : 'outline'}
-            onClick={() => setStatusFilter('rejected')}
-            size="sm"
-          >
-            Rejected
-          </Button>
-          <Button
-            variant={statusFilter === 'withdrawn' ? 'default' : 'outline'}
-            onClick={() => setStatusFilter('withdrawn')}
-            size="sm"
-          >
-            Withdrawn
-          </Button>
+        {/* Filters */}
+        <div className="mb-4 flex flex-wrap gap-4">
+          <div className="flex gap-2">
+            <Button
+              variant={statusFilter === undefined ? 'default' : 'outline'}
+              onClick={() => setStatusFilter(undefined)}
+              size="sm"
+            >
+              All Status
+            </Button>
+            <Button
+              variant={statusFilter === 'pending' ? 'default' : 'outline'}
+              onClick={() => setStatusFilter('pending')}
+              size="sm"
+            >
+              Pending
+            </Button>
+            <Button
+              variant={statusFilter === 'approved' ? 'default' : 'outline'}
+              onClick={() => setStatusFilter('approved')}
+              size="sm"
+            >
+              Approved
+            </Button>
+            <Button
+              variant={statusFilter === 'rejected' ? 'default' : 'outline'}
+              onClick={() => setStatusFilter('rejected')}
+              size="sm"
+            >
+              Rejected
+            </Button>
+            <Button
+              variant={statusFilter === 'withdrawn' ? 'default' : 'outline'}
+              onClick={() => setStatusFilter('withdrawn')}
+              size="sm"
+            >
+              Withdrawn
+            </Button>
+          </div>
+          <Select value={vendorCompanyFilter} onValueChange={setVendorCompanyFilter}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="Filter by vendor company" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Vendors</SelectItem>
+              {vendorCompanies.map((company) => (
+                <SelectItem key={company} value={company}>
+                  {company}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         <Card>
@@ -141,7 +175,7 @@ export function AdminDashboard() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <VendorRequestTable data={filteredRequests || []} isLoading={isLoading} isAdmin={true} />
+            <VendorRequestTable data={filteredRequests} isLoading={isLoading} isAdmin={true} />
           </CardContent>
         </Card>
       </main>

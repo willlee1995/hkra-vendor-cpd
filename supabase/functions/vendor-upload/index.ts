@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { sendEmail, generateAttendanceUploadConfirmationEmail, generateAttendanceUploadAdminNotificationEmail } from '../vendor-requests/email.ts'
 
 // Get Supabase credentials from environment variables
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
@@ -32,20 +33,9 @@ serve(async (req) => {
   }
 
   try {
-    // Get public Supabase URL for generating public URLs
-    // Use PUBLIC_SUPABASE_URL if available, otherwise fall back to SUPABASE_URL
-    // PUBLIC_SUPABASE_URL should be set to the public-facing URL (e.g., https://supabase.hkra.org.hk)
-    const PUBLIC_SUPABASE_URL = Deno.env.get('PUBLIC_SUPABASE_URL') || SUPABASE_URL
-    
     // Create Supabase client with service role key to bypass RLS
     const supabaseClient = createClient(
       SUPABASE_URL,
-      SUPABASE_SERVICE_ROLE_KEY,
-    )
-
-    // Create a separate client with public URL for generating public URLs
-    const publicUrlClient = createClient(
-      PUBLIC_SUPABASE_URL,
       SUPABASE_SERVICE_ROLE_KEY,
     )
 
@@ -106,38 +96,50 @@ serve(async (req) => {
       )
     }
 
-    // Parse form data
+    // Parse form data - support multiple files
     const formData = await req.formData()
-    const file = formData.get('file') as File
+
+    // Debug: Log all form data keys
+    const formDataKeys: string[] = []
+    for (const key of formData.keys()) {
+      formDataKeys.push(key)
+    }
+    console.log('FormData keys:', formDataKeys)
+
+    const files = formData.getAll('files') as File[]
     const requestId = formData.get('requestId') as string
 
-    if (!file || !requestId) {
-      return new Response(
-        JSON.stringify({ error: 'File and requestId are required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    console.log('Files count:', files.length, 'RequestId:', requestId)
+
+    // Support single file for backward compatibility
+    if (files.length === 0) {
+      const singleFile = formData.get('file') as File
+      if (singleFile) {
+        files.push(singleFile)
+        console.log('Found single file for backward compatibility')
+      }
     }
 
-    // Validate file type
-    if (!ALLOWED_ATTENDANCE_TYPES.includes(file.type)) {
+    if (files.length === 0 || !requestId) {
+      console.error('Validation failed:', { filesCount: files.length, requestId, formDataKeys })
       return new Response(
-        JSON.stringify({ error: 'Invalid file type. Only CSV and XLSX files are allowed.' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Validate file size
-    if (file.size > MAX_FILE_SIZE) {
-      return new Response(
-        JSON.stringify({ error: 'File size exceeds 50MB limit' }),
+        JSON.stringify({
+          error: 'At least one file and requestId are required',
+          details: {
+            filesCount: files.length,
+            requestId: requestId || 'missing',
+            formDataKeys
+          }
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
     // Verify request exists, belongs to vendor, and is approved
+    // Also get request details for email notifications
     const { data: request, error: requestError } = await supabaseClient
       .from('vendor_requests')
-      .select('id, status')
+      .select('id, status, event_name, event_start_date, event_end_date, event_start_time, event_end_time, vendor_company_name, contact_name, contact_email, contact_phone, attendance_file_url')
       .eq('id', requestId)
       .eq('vendor_id', vendor.id)
       .single()
@@ -156,35 +158,94 @@ serve(async (req) => {
       )
     }
 
-    // Generate file path
-    const fileExt = file.name.split('.').pop()
-    const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
-    const filePath = `${vendor.id}/${requestId}/${fileName}`
-
-    // Upload file to storage
-    const fileBuffer = await file.arrayBuffer()
-    const { error: uploadError } = await supabaseClient.storage
-      .from('vendor-attendance')
-      .upload(filePath, fileBuffer, {
-        contentType: file.type,
-        upsert: false,
-      })
-
-    if (uploadError) {
-      throw uploadError
+    // Get existing attendance file URLs (handle both array and single string for migration)
+    let existingUrls: string[] = []
+    if (request.attendance_file_url) {
+      if (Array.isArray(request.attendance_file_url)) {
+        existingUrls = request.attendance_file_url
+      } else if (typeof request.attendance_file_url === 'string') {
+        existingUrls = [request.attendance_file_url]
+      }
     }
 
-    // Get public URL using the client with public URL
-    const { data: urlData } = publicUrlClient.storage
-      .from('vendor-attendance')
-      .getPublicUrl(filePath)
+    // Validate and upload all files
+    const uploadedUrls: string[] = []
+    const errors: string[] = []
 
-    // Update request with file URL
+    for (const file of files) {
+      // Validate file type
+      if (!ALLOWED_ATTENDANCE_TYPES.includes(file.type) && !file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
+        errors.push(`${file.name}: Invalid file type. Only CSV and XLSX files are allowed.`)
+        continue
+      }
+
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE) {
+        errors.push(`${file.name}: File size exceeds 50MB limit`)
+        continue
+      }
+
+      try {
+        // Generate file path
+        const fileExt = file.name.split('.').pop() || 'csv'
+        const fileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`
+        const filePath = `${vendor.id}/${requestId}/${fileName}`
+
+        // Upload file to storage
+        const fileBuffer = await file.arrayBuffer()
+        const { error: uploadError } = await supabaseClient.storage
+          .from('vendor-attendance')
+          .upload(filePath, fileBuffer, {
+            contentType: file.type,
+            upsert: false,
+          })
+
+        if (uploadError) {
+          console.error('Storage upload error:', uploadError)
+          errors.push(`${file.name}: Upload failed - ${uploadError.message}`)
+          continue
+        }
+
+        // Since the bucket is private, we need to create a signed URL instead of a public URL
+        // Signed URLs expire after a set time, so we use a long expiration (1 year = 31536000 seconds)
+        const { data: signedUrlData, error: signedUrlError } = await supabaseClient.storage
+          .from('vendor-attendance')
+          .createSignedUrl(filePath, 31536000) // 1 year expiration
+
+        if (signedUrlError || !signedUrlData) {
+          console.error('Failed to create signed URL:', signedUrlError)
+          errors.push(`${file.name}: Failed to create signed URL`)
+          continue
+        }
+
+        uploadedUrls.push(signedUrlData.signedUrl)
+      } catch (error) {
+        console.error(`Error uploading ${file.name}:`, error)
+        errors.push(`${file.name}: ${error instanceof Error ? error.message : 'Upload failed'}`)
+      }
+    }
+
+    // If no files were uploaded successfully, return error
+    if (uploadedUrls.length === 0) {
+      return new Response(
+        JSON.stringify({
+          error: 'Failed to upload files',
+          details: errors.length > 0 ? errors : ['No files were uploaded']
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // Combine existing URLs with newly uploaded URLs
+    const allUrls = [...existingUrls, ...uploadedUrls]
+
+    // Update request with combined file URLs
+    const uploadedAt = new Date().toISOString()
     const { data: updatedRequest, error: updateError } = await supabaseClient
       .from('vendor_requests')
       .update({
-        attendance_file_url: urlData.publicUrl,
-        attendance_uploaded_at: new Date().toISOString(),
+        attendance_file_url: allUrls,
+        attendance_uploaded_at: uploadedAt,
       })
       .eq('id', requestId)
       .select()
@@ -194,10 +255,84 @@ serve(async (req) => {
       throw updateError
     }
 
+    // Send email notifications (errors are caught so they don't break the upload)
+    try {
+      // Send confirmation email to vendor
+      if (request.contact_email) {
+        await sendEmail({
+          to: request.contact_email,
+          subject: `Attendance File Uploaded - ${request.event_name}`,
+          html: generateAttendanceUploadConfirmationEmail({
+            event_name: request.event_name,
+            event_start_date: request.event_start_date,
+            event_end_date: request.event_end_date,
+            event_start_time: request.event_start_time || undefined,
+            event_end_time: request.event_end_time || undefined,
+            contact_name: request.contact_name,
+            request_id: request.id,
+            uploaded_at: uploadedAt,
+          }),
+        })
+      }
+
+      // Send notification email to all admin users
+      try {
+        // Query admin users using Admin API
+        const { data: allUsers, error: listError } = await supabaseClient.auth.admin.listUsers()
+
+        if (listError) {
+          console.error('Failed to list users for admin notifications:', listError)
+        } else {
+          // Filter users with admin role
+          const adminEmails = allUsers?.users
+            ?.filter((user: any) => {
+              const role = user.user_metadata?.role || user.raw_user_meta_data?.role
+              return role === 'admin' && user.email
+            })
+            .map((user: any) => user.email)
+            .filter(Boolean) || []
+
+          if (adminEmails.length > 0) {
+            console.log(`Sending attendance upload notifications to ${adminEmails.length} admin(s)`)
+            const emailPromises = adminEmails.map((email: string) =>
+              sendEmail({
+                to: email,
+                subject: `Attendance File Uploaded - ${request.event_name}`,
+                html: generateAttendanceUploadAdminNotificationEmail({
+                  event_name: request.event_name,
+                  event_start_date: request.event_start_date,
+                  event_end_date: request.event_end_date,
+                  event_start_time: request.event_start_time || undefined,
+                  event_end_time: request.event_end_time || undefined,
+                  vendor_company_name: request.vendor_company_name,
+                  contact_name: request.contact_name,
+                  contact_email: request.contact_email,
+                  request_id: request.id,
+                  uploaded_at: uploadedAt,
+                }),
+              }).catch((error) => {
+                console.error(`Failed to send admin notification to ${email}:`, error)
+              })
+            )
+            await Promise.all(emailPromises)
+          } else {
+            console.warn('No admin users found to send notifications to')
+          }
+        }
+      } catch (emailError) {
+        console.error('Error sending admin notification emails:', emailError)
+      }
+    } catch (emailError) {
+      // Log error but don't fail the upload
+      console.error('Error sending email notifications:', emailError)
+    }
+
     return new Response(
       JSON.stringify({
         success: true,
-        fileUrl: urlData.publicUrl,
+        fileUrls: uploadedUrls,
+        allFileUrls: allUrls,
+        errors: errors.length > 0 ? errors : undefined,
         request: updatedRequest,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

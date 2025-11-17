@@ -17,6 +17,8 @@ export interface VendorRequest {
   event_name: string
   event_start_date: string
   event_end_date: string
+  event_start_time?: string | null
+  event_end_time?: string | null
   expected_cpd_points?: number | null
   vendor_company_name: string
   contact_name: string
@@ -30,7 +32,7 @@ export interface VendorRequest {
   rejection_reason?: string
   approved_by?: string
   approved_at?: string
-  attendance_file_url?: string
+  attendance_file_url?: string[] // Array of URLs for attendance files
   attendance_uploaded_at?: string
   created_at: string
   updated_at: string
@@ -50,6 +52,8 @@ export interface CreateVendorRequestInput {
   event_name: string
   event_start_date: string
   event_end_date: string
+  event_start_time: string
+  event_end_time: string
   vendor_company_name?: string
   contact_name?: string
   contact_email?: string
@@ -63,6 +67,8 @@ export interface UpdateVendorRequestInput {
   event_name?: string
   event_start_date?: string
   event_end_date?: string
+  event_start_time?: string
+  event_end_time?: string
   expected_cpd_points?: number
   vendor_company_name?: string
   contact_name?: string

@@ -5,7 +5,7 @@ import { VendorStatusBadge } from '@/components/vendor/VendorStatusBadge'
 import { useVendorRequest } from '@/hooks/useVendorRequests'
 import { useVendorAuth } from '@/hooks/useVendorAuth'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { ArrowLeft, CheckCircle2, XCircle, Calendar, Mail, Phone, Building, Download } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, XCircle, Calendar, Mail, Phone, Building, Download, RotateCcw } from 'lucide-react'
 import { format } from 'date-fns'
 import { HKRAHeader } from '@/components/vendor/HKRAHeader'
 import { useState, useEffect } from 'react'
@@ -14,7 +14,70 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { vendorApiClient } from '@/lib/vendorApiClient'
-import { getDisplayableUrl, normalizeStorageUrl } from '@/lib/storageUtils'
+import { getDisplayableUrl, normalizeStorageUrl, extractStoragePath, getSignedUrl } from '@/lib/storageUtils'
+
+// Helper function to format time (HH:MM) to 12-hour format
+const formatTime = (time: string | null | undefined): string => {
+    if (!time) return ''
+    try {
+        const [hours, minutes] = time.split(':')
+        const hour = parseInt(hours, 10)
+        const ampm = hour >= 12 ? 'PM' : 'AM'
+        const displayHour = hour % 12 || 12
+        return `${displayHour}:${minutes} ${ampm}`
+    } catch {
+        return time
+    }
+}
+
+// Helper function to calculate duration between start and end date/time
+const calculateDuration = (
+    startDate: string,
+    endDate: string,
+    startTime?: string | null,
+    endTime?: string | null
+): string => {
+    try {
+        // Parse dates
+        const start = new Date(startDate)
+        const end = new Date(endDate)
+
+        // If times are provided, combine date and time
+        if (startTime) {
+            const [startHours, startMinutes] = startTime.split(':').map(Number)
+            start.setHours(startHours, startMinutes, 0, 0)
+        }
+
+        if (endTime) {
+            const [endHours, endMinutes] = endTime.split(':').map(Number)
+            end.setHours(endHours, endMinutes, 0, 0)
+        }
+
+        // Calculate difference in milliseconds
+        const diffMs = end.getTime() - start.getTime()
+
+        if (diffMs < 0) {
+            return 'Invalid duration'
+        }
+
+        // Convert to hours and minutes
+        const totalMinutes = Math.floor(diffMs / (1000 * 60))
+        const hours = Math.floor(totalMinutes / 60)
+        const minutes = totalMinutes % 60
+
+        // Format duration
+        if (hours === 0) {
+            return `${minutes} minute${minutes !== 1 ? 's' : ''}`
+        } else if (minutes === 0) {
+            return `${hours} hour${hours !== 1 ? 's' : ''}`
+        } else {
+            return `${hours} hour${hours !== 1 ? 's' : ''} ${minutes} minute${minutes !== 1 ? 's' : ''}`
+        }
+    } catch (error) {
+        console.error('Error calculating duration:', error)
+        return 'Unable to calculate'
+    }
+}
 
 export function AdminRequestDetail() {
     const { id } = useParams<{ id: string }>()
@@ -106,6 +169,59 @@ export function AdminRequestDetail() {
         }
     }
 
+    const handleUnapprove = async () => {
+        if (!id || !isAdmin()) return
+
+        if (!confirm('Are you sure you want to unapprove this request? The requestor will be notified.')) {
+            return
+        }
+
+        setIsProcessing(true)
+        try {
+            await vendorApiClient.updateRequest(id, {
+                status: 'pending',
+                admin_notes: adminNotes || 'Request unapproved and returned to pending status for further review.',
+            })
+            toast.success('Request unapproved successfully')
+            navigate('/admin/dashboard')
+        } catch (error: any) {
+            toast.error(error.message || 'Failed to unapprove request')
+        } finally {
+            setIsProcessing(false)
+        }
+    }
+
+    const handleUnreject = async () => {
+        if (!id || !isAdmin()) return
+
+        if (!confirm('Are you sure you want to unreject and approve this request? The requestor will be notified.')) {
+            return
+        }
+
+        // Check if CPD points are set (required for approval)
+        const cpdPointsNum = cpdPoints ? parseFloat(cpdPoints) : null
+        if (!cpdPointsNum || isNaN(cpdPointsNum) || cpdPointsNum < 0.5 || cpdPointsNum > 8.0) {
+            toast.error('Please provide valid CPD points (0.5 - 8.0) before approving')
+            return
+        }
+
+        setIsProcessing(true)
+        try {
+            await vendorApiClient.updateRequest(id, {
+                status: 'approved',
+                admin_notes: adminNotes || 'Request unrejected and approved.',
+                rejection_reason: undefined,
+                expected_cpd_points: cpdPointsNum,
+            })
+            toast.success('Request unrejected and approved successfully')
+            navigate('/admin/dashboard')
+        } catch (error: any) {
+            toast.error(error.message || 'Failed to unreject and approve request')
+        } finally {
+            setIsProcessing(false)
+        }
+    }
+
     if (!isAdmin()) {
         return (
             <div className="flex min-h-screen items-center justify-center bg-background">
@@ -163,7 +279,7 @@ export function AdminRequestDetail() {
                     </div>
                 </div>
 
-                <div className="grid gap-6 md:grid-cols-2">
+                <div className="grid gap-6">
                     <Card>
                         <CardHeader>
                             <CardTitle>Event Details</CardTitle>
@@ -178,17 +294,40 @@ export function AdminRequestDetail() {
                                     <p className="text-sm font-medium text-muted-foreground">Start Date</p>
                                     <div className="flex items-center gap-2">
                                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                                        <p>{format(new Date(request.event_start_date), 'PPP')}</p>
+                                        <p>
+                                            {format(new Date(request.event_start_date), 'PPP')}
+                                            {request.event_start_time && (
+                                                <span className="ml-2 text-muted-foreground">• {formatTime(request.event_start_time)}</span>
+                                            )}
+                                        </p>
                                     </div>
                                 </div>
                                 <div>
                                     <p className="text-sm font-medium text-muted-foreground">End Date</p>
                                     <div className="flex items-center gap-2">
                                         <Calendar className="h-4 w-4 text-muted-foreground" />
-                                        <p>{format(new Date(request.event_end_date), 'PPP')}</p>
+                                        <p>
+                                            {format(new Date(request.event_end_date), 'PPP')}
+                                            {request.event_end_time && (
+                                                <span className="ml-2 text-muted-foreground">• {formatTime(request.event_end_time)}</span>
+                                            )}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
+                            {request.event_start_time && request.event_end_time && (
+                                <div>
+                                    <p className="text-sm font-medium text-muted-foreground">Duration</p>
+                                    <p className="text-lg font-semibold text-primary">
+                                        {calculateDuration(
+                                            request.event_start_date,
+                                            request.event_end_date,
+                                            request.event_start_time,
+                                            request.event_end_time
+                                        )}
+                                    </p>
+                                </div>
+                            )}
                             {request.expected_promotion_date && (
                                 <div>
                                     <p className="text-sm font-medium text-muted-foreground">Expected Promotion Date</p>
@@ -209,7 +348,7 @@ export function AdminRequestDetail() {
 
                     {/* Event Related Materials Card */}
                     {posterUrls.length > 0 && (
-                        <Card className="md:col-span-2">
+                        <Card>
                             <CardHeader>
                                 <CardTitle>Event Related Materials</CardTitle>
                                 <CardDescription>Materials uploaded for this CPD event</CardDescription>
@@ -323,7 +462,7 @@ export function AdminRequestDetail() {
 
                     {/* Admin Actions */}
                     {request.status === 'pending' && (
-                        <Card className="md:col-span-2">
+                        <Card>
                             <CardHeader>
                                 <CardTitle>Admin Actions</CardTitle>
                                 <CardDescription>Approve or reject this CPD request</CardDescription>
@@ -390,19 +529,98 @@ export function AdminRequestDetail() {
                         </Card>
                     )}
 
-                    {request.status === 'rejected' && request.rejection_reason && (
-                        <Card className="md:col-span-2">
+                    {request.status === 'approved' && (
+                        <Card>
                             <CardHeader>
-                                <CardTitle>Rejection Reason</CardTitle>
+                                <CardTitle>Admin Actions</CardTitle>
+                                <CardDescription>Unapprove this request to return it to pending status</CardDescription>
                             </CardHeader>
-                            <CardContent>
-                                <p className="text-foreground">{request.rejection_reason}</p>
+                            <CardContent className="space-y-4">
+                                <div>
+                                    <Label htmlFor="unapprove-notes">Admin Notes (Optional)</Label>
+                                    <Textarea
+                                        id="unapprove-notes"
+                                        placeholder="Enter notes about why this request is being unapproved..."
+                                        value={adminNotes}
+                                        onChange={(e) => setAdminNotes(e.target.value)}
+                                        className="mt-2"
+                                        rows={3}
+                                    />
+                                </div>
+                                <Button
+                                    onClick={handleUnapprove}
+                                    disabled={isProcessing}
+                                    variant="outline"
+                                    className="border-yellow-500 text-yellow-600 hover:bg-yellow-50"
+                                >
+                                    <RotateCcw className="mr-2 h-4 w-4" />
+                                    Unapprove Request
+                                </Button>
                             </CardContent>
                         </Card>
                     )}
 
+                    {request.status === 'rejected' && (
+                        <>
+                            {request.rejection_reason && (
+                                <Card>
+                                    <CardHeader>
+                                        <CardTitle>Rejection Reason</CardTitle>
+                                    </CardHeader>
+                                    <CardContent>
+                                        <p className="text-foreground">{request.rejection_reason}</p>
+                                    </CardContent>
+                                </Card>
+                            )}
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Admin Actions</CardTitle>
+                                    <CardDescription>Unreject and approve this request</CardDescription>
+                                </CardHeader>
+                                <CardContent className="space-y-4">
+                                    <div>
+                                        <Label htmlFor="unreject-notes">Admin Notes (Optional)</Label>
+                                        <Textarea
+                                            id="unreject-notes"
+                                            placeholder="Enter notes about this approval..."
+                                            value={adminNotes}
+                                            onChange={(e) => setAdminNotes(e.target.value)}
+                                            className="mt-2"
+                                            rows={3}
+                                        />
+                                    </div>
+                                    <div>
+                                        <Label htmlFor="unreject-cpd-points">CPD Points (Required)</Label>
+                                        <Input
+                                            id="unreject-cpd-points"
+                                            type="number"
+                                            step="0.5"
+                                            min="0.5"
+                                            max="8.0"
+                                            placeholder="e.g., 1.0, 2.5, 4.0"
+                                            value={cpdPoints}
+                                            onChange={(e) => setCpdPoints(e.target.value)}
+                                            className="mt-2"
+                                        />
+                                        <p className="text-sm text-muted-foreground mt-1">
+                                            Enter CPD points to be awarded (0.5 - 8.0)
+                                        </p>
+                                    </div>
+                                    <Button
+                                        onClick={handleUnreject}
+                                        disabled={isProcessing}
+                                        className="bg-green-600 hover:bg-green-700"
+                                    >
+                                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                                        Unreject and Approve Request
+                                    </Button>
+                                </CardContent>
+                            </Card>
+                        </>
+                    )}
+
                     {request.admin_notes && (
-                        <Card className="md:col-span-2">
+                        <Card>
                             <CardHeader>
                                 <CardTitle>Admin Notes</CardTitle>
                             </CardHeader>
@@ -412,33 +630,70 @@ export function AdminRequestDetail() {
                         </Card>
                     )}
 
-                    {request.attendance_file_url && (
-                        <Card className="md:col-span-2">
-                            <CardHeader>
-                                <CardTitle>Attendance File</CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <div className="flex items-center gap-4">
-                                    <p className="text-sm text-muted-foreground">
-                                        Attendance file uploaded on{' '}
-                                        {request.attendance_uploaded_at
-                                            ? format(new Date(request.attendance_uploaded_at), 'PPP')
-                                            : 'N/A'}
-                                    </p>
-                                    <a
-                                        href={request.attendance_file_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                    >
-                                        <Button variant="outline" size="sm">
-                                            <Download className="mr-2 h-4 w-4" />
-                                            Download
-                                        </Button>
-                                    </a>
-                                </div>
-                            </CardContent>
-                        </Card>
-                    )}
+                    {(() => {
+                        // Normalize attendance_file_url to always be an array (handle migration from string to array)
+                        const attendanceFiles = Array.isArray(request.attendance_file_url)
+                            ? request.attendance_file_url
+                            : request.attendance_file_url
+                                ? [request.attendance_file_url]
+                                : []
+
+                        return attendanceFiles.length > 0 ? (
+                            <Card>
+                                <CardHeader>
+                                    <CardTitle>Attendance Files</CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="space-y-2">
+                                        <p className="text-sm text-muted-foreground">
+                                            {attendanceFiles.length} attendance file{attendanceFiles.length > 1 ? 's' : ''} uploaded on{' '}
+                                            {request.attendance_uploaded_at
+                                                ? format(new Date(request.attendance_uploaded_at), 'PPP')
+                                                : 'N/A'}
+                                        </p>
+                                        <div className="space-y-2">
+                                            {attendanceFiles.map((url, index) => (
+                                                <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                                                    <span className="text-sm text-muted-foreground flex-1">
+                                                        File {index + 1}
+                                                    </span>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        onClick={async () => {
+                                                            if (!url) return
+                                                            try {
+                                                                // Extract path from URL and generate signed URL if needed
+                                                                const path = extractStoragePath(url, 'vendor-attendance')
+                                                                if (path) {
+                                                                    const signedUrl = await getSignedUrl('vendor-attendance', path, 3600)
+                                                                    if (signedUrl) {
+                                                                        window.open(normalizeStorageUrl(signedUrl), '_blank', 'noopener,noreferrer')
+                                                                    } else {
+                                                                        // Fallback to normalized URL
+                                                                        window.open(normalizeStorageUrl(url), '_blank', 'noopener,noreferrer')
+                                                                    }
+                                                                } else {
+                                                                    // Fallback to normalized URL
+                                                                    window.open(normalizeStorageUrl(url), '_blank', 'noopener,noreferrer')
+                                                                }
+                                                            } catch (error) {
+                                                                console.error('Error downloading file:', error)
+                                                                toast.error('Failed to download file')
+                                                            }
+                                                        }}
+                                                    >
+                                                        <Download className="mr-2 h-4 w-4" />
+                                                        Download
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ) : null
+                    })()}
                 </div>
             </main>
         </div>

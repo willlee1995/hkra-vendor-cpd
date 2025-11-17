@@ -162,3 +162,5 @@ bun run scripts/setup-admin-user.ts admin@example.com password123
 - Verify RLS policies are enabled
 - Check that the admin role check is working in edge functions
 - Ensure the edge function has been redeployed after updates
+
+

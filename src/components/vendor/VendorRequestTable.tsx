@@ -25,9 +25,24 @@ interface VendorRequestTableProps {
   isAdmin?: boolean // If true, links will go to admin pages
 }
 
+// Helper function to format time (HH:MM) to 12-hour format
+const formatTime = (time: string | null | undefined): string => {
+  if (!time) return '-'
+  try {
+    const [hours, minutes] = time.split(':')
+    const hour = parseInt(hours, 10)
+    const ampm = hour >= 12 ? 'PM' : 'AM'
+    const displayHour = hour % 12 || 12
+    return `${displayHour}:${minutes} ${ampm}`
+  } catch {
+    return time
+  }
+}
+
 export function VendorRequestTable({ data, isLoading, isAdmin = false }: VendorRequestTableProps) {
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  // Only use status filter for vendor view, admin dashboard handles its own filtering
   const [statusFilter, setStatusFilter] = useState<string>('all')
 
   const columns: ColumnDef<VendorRequest>[] = [
@@ -35,13 +50,13 @@ export function VendorRequestTable({ data, isLoading, isAdmin = false }: VendorR
       accessorKey: 'event_name',
       header: ({ column }) => {
         return (
-          <Button
-            variant="ghost"
+          <div
+            className="flex items-center cursor-pointer hover:text-foreground select-none"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
             Event Name
             <ArrowUpDown className="ml-2 h-4 w-4" />
-          </Button>
+          </div>
         )
       },
       cell: ({ row }) => (
@@ -52,13 +67,13 @@ export function VendorRequestTable({ data, isLoading, isAdmin = false }: VendorR
       accessorKey: 'vendor_company_name',
       header: ({ column }: any) => {
         return (
-          <Button
-            variant="ghost"
+          <div
+            className="flex items-center cursor-pointer hover:text-foreground select-none"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
             Vendor Company
             <ArrowUpDown className="ml-2 h-4 w-4" />
-          </Button>
+          </div>
         )
       },
       cell: ({ row }: any) => (
@@ -69,39 +84,71 @@ export function VendorRequestTable({ data, isLoading, isAdmin = false }: VendorR
       accessorKey: 'event_start_date',
       header: ({ column }) => {
         return (
-          <Button
-            variant="ghost"
+          <div
+            className="flex items-center cursor-pointer hover:text-foreground select-none"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
-            Start Date
+            Start Date & Time
             <ArrowUpDown className="ml-2 h-4 w-4" />
-          </Button>
+          </div>
         )
       },
       cell: ({ row }) => {
         const date = row.getValue('event_start_date') as string
-        return format(new Date(date), 'MMM dd, yyyy')
+        const request = row.original
+        const formattedDate = format(new Date(date), 'MMM dd, yyyy')
+        if (request.event_start_time) {
+          const formattedTime = formatTime(request.event_start_time)
+          return (
+            <div>
+              <div>{formattedDate}</div>
+              <div className="text-sm text-muted-foreground">{formattedTime}</div>
+            </div>
+          )
+        }
+        return formattedDate
       },
     },
     {
       accessorKey: 'event_end_date',
-      header: 'End Date',
+      header: ({ column }) => {
+        return (
+          <div
+            className="flex items-center cursor-pointer hover:text-foreground select-none"
+            onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+          >
+            End Date & Time
+            <ArrowUpDown className="ml-2 h-4 w-4" />
+          </div>
+        )
+      },
       cell: ({ row }) => {
         const date = row.getValue('event_end_date') as string
-        return format(new Date(date), 'MMM dd, yyyy')
+        const request = row.original
+        const formattedDate = format(new Date(date), 'MMM dd, yyyy')
+        if (request.event_end_time) {
+          const formattedTime = formatTime(request.event_end_time)
+          return (
+            <div>
+              <div>{formattedDate}</div>
+              <div className="text-sm text-muted-foreground">{formattedTime}</div>
+            </div>
+          )
+        }
+        return formattedDate
       },
     },
     {
       accessorKey: 'expected_cpd_points',
       header: ({ column }) => {
         return (
-          <Button
-            variant="ghost"
+          <div
+            className="flex items-center cursor-pointer hover:text-foreground select-none"
             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
           >
             CPD Points
             <ArrowUpDown className="ml-2 h-4 w-4" />
-          </Button>
+          </div>
         )
       },
       cell: ({ row }) => {
@@ -135,8 +182,10 @@ export function VendorRequestTable({ data, isLoading, isAdmin = false }: VendorR
     },
   ]
 
-  // Apply status filter to data
-  const filteredData = statusFilter === 'all'
+  // Apply status filter to data (only for vendor view, admin dashboard handles filtering)
+  const filteredData = isAdmin
+    ? data // Admin dashboard already filters the data before passing it
+    : statusFilter === 'all'
     ? data
     : data.filter(item => item.status === statusFilter)
 
@@ -176,18 +225,20 @@ export function VendorRequestTable({ data, isLoading, isAdmin = false }: VendorR
           }
           className="max-w-sm"
         />
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="pending">Pending</SelectItem>
-            <SelectItem value="approved">Approved</SelectItem>
-            <SelectItem value="rejected">Rejected</SelectItem>
-            <SelectItem value="withdrawn">Withdrawn</SelectItem>
-          </SelectContent>
-        </Select>
+        {!isAdmin && (
+          <Select value={statusFilter} onValueChange={setStatusFilter}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Filter by status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="pending">Pending</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+              <SelectItem value="withdrawn">Withdrawn</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       <div className="rounded-md border">
