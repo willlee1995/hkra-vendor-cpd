@@ -270,39 +270,39 @@ export function RequestDetail() {
                         </p>
                         <div className="space-y-2">
                           {attendanceFiles.map((url, index) => (
-                          <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
-                            <span className="text-sm text-gray-700 flex-1">
-                              File {index + 1}
-                            </span>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={async () => {
-                                try {
-                                  // Extract path from URL and generate signed URL if needed
-                                  const path = extractStoragePath(url, 'vendor-attendance')
-                                  if (path) {
-                                    const signedUrl = await getSignedUrl('vendor-attendance', path, 3600)
-                                    if (signedUrl) {
-                                      window.open(normalizeStorageUrl(signedUrl), '_blank', 'noopener,noreferrer')
+                            <div key={index} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                              <span className="text-sm text-gray-700 flex-1">
+                                File {index + 1}
+                              </span>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={async () => {
+                                  try {
+                                    // Extract path from URL and generate signed URL if needed
+                                    const path = extractStoragePath(url, 'vendor-attendance')
+                                    if (path) {
+                                      const signedUrl = await getSignedUrl('vendor-attendance', path, 3600)
+                                      if (signedUrl) {
+                                        window.open(normalizeStorageUrl(signedUrl), '_blank', 'noopener,noreferrer')
+                                      } else {
+                                        // Fallback to normalized URL
+                                        window.open(normalizeStorageUrl(url), '_blank', 'noopener,noreferrer')
+                                      }
                                     } else {
                                       // Fallback to normalized URL
                                       window.open(normalizeStorageUrl(url), '_blank', 'noopener,noreferrer')
                                     }
-                                  } else {
-                                    // Fallback to normalized URL
-                                    window.open(normalizeStorageUrl(url), '_blank', 'noopener,noreferrer')
+                                  } catch (error) {
+                                    console.error('Error downloading file:', error)
+                                    toast.error('Failed to download file')
                                   }
-                                } catch (error) {
-                                  console.error('Error downloading file:', error)
-                                  toast.error('Failed to download file')
-                                }
-                              }}
-                            >
-                              <Download className="mr-2 h-4 w-4" />
-                              Download
-                            </Button>
-                          </div>
+                                }}
+                              >
+                                <Download className="mr-2 h-4 w-4" />
+                                Download
+                              </Button>
+                            </div>
                           ))}
                         </div>
                       </div>
@@ -323,17 +323,6 @@ export function RequestDetail() {
               </CardHeader>
               <CardContent>
                 <p className="text-gray-700">{request.rejection_reason}</p>
-              </CardContent>
-            </Card>
-          )}
-
-          {request.admin_notes && (
-            <Card className="md:col-span-2">
-              <CardHeader>
-                <CardTitle>Admin Notes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-gray-700">{request.admin_notes}</p>
               </CardContent>
             </Card>
           )}

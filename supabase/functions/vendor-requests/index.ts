@@ -481,7 +481,6 @@ serve(async (req) => {
                   expected_cpd_points: updatedRequest.expected_cpd_points ? parseFloat(String(updatedRequest.expected_cpd_points)) : null,
                   contact_name: updatedRequest.contact_name,
                   request_id: updatedRequest.id,
-                  admin_notes: updateBody.admin_notes || null,
                 }),
               })
             } else if (updateBody.status === 'pending' && existingRequest.status === 'approved') {
@@ -497,7 +496,6 @@ serve(async (req) => {
                   event_end_time: updatedRequest.event_end_time || undefined,
                   contact_name: updatedRequest.contact_name,
                   request_id: updatedRequest.id,
-                  admin_notes: updateBody.admin_notes || null,
                 }),
               })
             } else if (updateBody.status === 'approved') {
@@ -514,7 +512,6 @@ serve(async (req) => {
                   expected_cpd_points: updatedRequest.expected_cpd_points ? parseFloat(String(updatedRequest.expected_cpd_points)) : null,
                   contact_name: updatedRequest.contact_name,
                   request_id: updatedRequest.id,
-                  admin_notes: updateBody.admin_notes || null,
                 }),
               })
             } else if (updateBody.status === 'rejected') {

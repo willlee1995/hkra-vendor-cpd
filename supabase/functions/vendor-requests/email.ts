@@ -258,7 +258,6 @@ export function generateApprovalEmail(request: {
   expected_cpd_points: number | null
   contact_name: string
   request_id: string
-  admin_notes?: string | null
 }): string {
   const startDate = new Date(request.event_start_date).toLocaleDateString('en-HK', {
     year: 'numeric',
@@ -318,13 +317,6 @@ export function generateApprovalEmail(request: {
         <p><strong>CPD Points:</strong> ${request.expected_cpd_points || 'To be determined'}</p>
         <p><strong>Request ID:</strong> ${request.request_id}</p>
       </div>
-
-      ${request.admin_notes ? `
-      <div style="background-color: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b;">
-        <h3 style="margin-top: 0; color: #92400e;">Admin Notes</h3>
-        <p style="margin: 0;">${request.admin_notes}</p>
-      </div>
-      ` : ''}
 
       <p>Your event has been approved and will be promoted according to the expected promotion date. You can view the full details of your request in the vendor portal.</p>
 
@@ -445,7 +437,6 @@ export function generateUnapprovalEmail(request: {
   event_end_time?: string
   contact_name: string
   request_id: string
-  admin_notes?: string | null
 }): string {
   const startDate = new Date(request.event_start_date).toLocaleDateString('en-HK', {
     year: 'numeric',
@@ -504,13 +495,6 @@ export function generateUnapprovalEmail(request: {
         <p><strong>Event Dates:</strong> ${eventDateRange}</p>
         <p><strong>Request ID:</strong> ${request.request_id}</p>
       </div>
-
-      ${request.admin_notes ? `
-      <div style="background-color: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #f59e0b;">
-        <h3 style="margin-top: 0; color: #92400e;">Admin Notes</h3>
-        <p style="margin: 0;">${request.admin_notes}</p>
-      </div>
-      ` : ''}
 
       <p>Your request is now under review again. We will notify you once a decision has been made. You can check the status of your request in the vendor portal.</p>
 
