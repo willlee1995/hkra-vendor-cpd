@@ -6,7 +6,6 @@ import { VendorRequestTable } from '@/components/vendor/VendorRequestTable'
 import { useVendorRequests } from '@/hooks/useVendorRequests'
 import { useVendorAuth } from '@/hooks/useVendorAuth'
 import { Plus } from 'lucide-react'
-import { HKRAHeader } from '@/components/vendor/HKRAHeader'
 
 export function Dashboard() {
   const { data: requests, isLoading } = useVendorRequests()
@@ -21,27 +20,27 @@ export function Dashboard() {
   }, [isAdmin, navigate])
 
   return (
-    <div className="min-h-screen bg-background">
-      <HKRAHeader showSignOut />
-
-      <main className="container mx-auto px-4 py-8">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h2 className="text-3xl font-bold text-foreground">CPD Requests</h2>
-            <p className="text-muted-foreground">Manage your CPD event requests</p>
-          </div>
+    <div className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-8">
+      <div className="mb-6 flex flex-col gap-4 md:mb-8 md:flex-row md:items-center md:justify-between">
+        <div>
+          <h2 className="text-2xl font-semibold text-neutral-ink-strong md:text-3xl">CPD Requests</h2>
+          <p className="mt-1 text-sm text-neutral-ink-muted">Manage your CPD event requests</p>
+        </div>
+        <div className="flex items-center gap-3">
           <Link to="/vendor/request/new">
-            <Button>
+            <Button className="bg-brand-primary hover:bg-brand-primary-strong text-white shadow-card-soft">
               <Plus className="mr-2 h-4 w-4" />
               New Request
             </Button>
           </Link>
         </div>
+      </div>
 
-        <Card>
+      <div className="grid gap-6">
+        <Card className="rounded-md bg-neutral-background-card shadow-card-soft border-none">
           <CardHeader>
-            <CardTitle>Your Requests</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-sm font-semibold text-neutral-ink-strong">Your Requests</CardTitle>
+            <CardDescription className="text-xs text-neutral-ink-muted">
               View and manage all your CPD request submissions
             </CardDescription>
           </CardHeader>
@@ -49,7 +48,7 @@ export function Dashboard() {
             <VendorRequestTable data={requests || []} isLoading={isLoading} />
           </CardContent>
         </Card>
-      </main>
+      </div>
     </div>
   )
 }

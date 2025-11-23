@@ -6,7 +6,7 @@ import { useCreateVendorRequest } from '@/hooks/useVendorRequests'
 import { useVendor } from '@/hooks/useVendor'
 import { ArrowLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { HKRAHeader } from '@/components/vendor/HKRAHeader'
+
 
 export function RequestNew() {
   const navigate = useNavigate()
@@ -34,7 +34,7 @@ export function RequestNew() {
 
   return (
     <div className="min-h-screen bg-background">
-      <HKRAHeader />
+      {/* HKRAHeader removed - using BrandHeader via AppShell */}
       <div className="container mx-auto px-4 py-4 border-b">
         <Link to="/vendor/dashboard">
           <Button variant="ghost" size="sm">

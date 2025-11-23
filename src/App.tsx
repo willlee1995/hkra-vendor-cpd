@@ -5,8 +5,10 @@ import { Dashboard } from '@/pages/vendor/Dashboard'
 import { RequestNew } from '@/pages/vendor/RequestNew'
 import { RequestEdit } from '@/pages/vendor/RequestEdit'
 import { RequestDetail } from '@/pages/vendor/RequestDetail'
+import { Settings } from '@/pages/vendor/Settings'
 import { AdminDashboard } from '@/pages/admin/AdminDashboard'
 import { AdminRequestDetail } from '@/pages/admin/AdminRequestDetail'
+import { AppShell } from '@/components/layout/AppShell'
 
 function App() {
   return (
@@ -17,7 +19,9 @@ function App() {
           path="/vendor/dashboard"
           element={
             <ProtectedRoute>
-              <Dashboard />
+              <AppShell>
+                <Dashboard />
+              </AppShell>
             </ProtectedRoute>
           }
         />
@@ -25,7 +29,9 @@ function App() {
           path="/vendor/request/new"
           element={
             <ProtectedRoute>
-              <RequestNew />
+              <AppShell>
+                <RequestNew />
+              </AppShell>
             </ProtectedRoute>
           }
         />
@@ -33,7 +39,9 @@ function App() {
           path="/vendor/request/:id"
           element={
             <ProtectedRoute>
-              <RequestDetail />
+              <AppShell>
+                <RequestDetail />
+              </AppShell>
             </ProtectedRoute>
           }
         />
@@ -41,7 +49,19 @@ function App() {
           path="/vendor/request/:id/edit"
           element={
             <ProtectedRoute>
-              <RequestEdit />
+              <AppShell>
+                <RequestEdit />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/vendor/settings"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <Settings />
+              </AppShell>
             </ProtectedRoute>
           }
         />
@@ -49,7 +69,9 @@ function App() {
           path="/admin/dashboard"
           element={
             <ProtectedRoute>
-              <AdminDashboard />
+              <AppShell>
+                <AdminDashboard />
+              </AppShell>
             </ProtectedRoute>
           }
         />
@@ -57,7 +79,9 @@ function App() {
           path="/admin/request/:id"
           element={
             <ProtectedRoute>
-              <AdminRequestDetail />
+              <AppShell>
+                <AdminRequestDetail />
+              </AppShell>
             </ProtectedRoute>
           }
         />

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { VendorRequestTable } from '@/components/vendor/VendorRequestTable'
 import { useVendorRequests } from '@/hooks/useVendorRequests'
-import { HKRAHeader } from '@/components/vendor/HKRAHeader'
+
 import { useVendorAuth } from '@/hooks/useVendorAuth'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { Badge } from '@/components/ui/badge'
@@ -65,7 +65,7 @@ export function AdminDashboard() {
 
   return (
     <div className="min-h-screen bg-background">
-      <HKRAHeader showSignOut />
+      {/* HKRAHeader removed - using BrandHeader via AppShell */}
 
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6">

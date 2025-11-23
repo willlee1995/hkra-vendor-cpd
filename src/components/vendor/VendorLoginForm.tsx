@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
-import { HKRAHeader } from './HKRAHeader'
+import { BrandHeader } from '@/components/layout/BrandHeader'
 
 export function VendorLoginForm() {
   const [email, setEmail] = useState('')
@@ -18,23 +18,23 @@ export function VendorLoginForm() {
 
   if (!isSupabaseConfigured()) {
     return (
-      <div className="flex min-h-screen flex-col bg-background">
-        <HKRAHeader />
+      <div className="flex min-h-screen flex-col bg-neutral-background-page">
+        <BrandHeader />
         <div className="flex flex-1 items-center justify-center px-4 py-12">
-          <Card className="w-full max-w-md">
+          <Card className="w-full max-w-md border-none shadow-card-soft bg-neutral-background-card">
             <CardHeader>
               <CardTitle>Configuration Required</CardTitle>
               <CardDescription>Supabase environment variables are not set</CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-gray-600 mb-4">
+              <p className="text-sm text-neutral-ink-medium mb-4">
                 Please set the following environment variables in your <code>.env</code> file:
               </p>
-              <ul className="list-disc list-inside text-sm text-gray-600 space-y-2 mb-4">
+              <ul className="list-disc list-inside text-sm text-neutral-ink-medium space-y-2 mb-4">
                 <li><code>VITE_SUPABASE_URL</code></li>
                 <li><code>VITE_SUPABASE_ANON_KEY</code></li>
               </ul>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-neutral-ink-medium">
                 After setting these variables, restart your development server.
               </p>
             </CardContent>
@@ -68,18 +68,18 @@ export function VendorLoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-background">
-      <HKRAHeader />
+    <div className="flex min-h-screen flex-col bg-neutral-background-page">
+      <BrandHeader />
       <div className="flex flex-1 items-center justify-center px-4 py-12">
-        <Card className="w-full max-w-md">
+        <Card className="w-full max-w-md border-none shadow-card-soft bg-neutral-background-card">
           <CardHeader>
-            <CardTitle>Vendor Portal Login</CardTitle>
-            <CardDescription>Sign in to access your CPD request portal</CardDescription>
+            <CardTitle className="text-xl font-semibold text-neutral-ink-strong">Vendor Portal Login</CardTitle>
+            <CardDescription className="text-neutral-ink-muted">Sign in to access your CPD request portal</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
+                <Label htmlFor="email" className="text-sm font-medium text-neutral-ink-medium">Email</Label>
                 <Input
                   id="email"
                   type="email"
@@ -88,10 +88,11 @@ export function VendorLoginForm() {
                   onChange={(e) => setEmail(e.target.value)}
                   required
                   disabled={isLoading}
+                  className="border-neutral-border-subtle focus:border-brand-primary focus:ring-brand-primary"
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
+                <Label htmlFor="password" className="text-sm font-medium text-neutral-ink-medium">Password</Label>
                 <Input
                   id="password"
                   type="password"
@@ -99,9 +100,10 @@ export function VendorLoginForm() {
                   onChange={(e) => setPassword(e.target.value)}
                   required
                   disabled={isLoading}
+                  className="border-neutral-border-subtle focus:border-brand-primary focus:ring-brand-primary"
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={isLoading}>
+              <Button type="submit" className="w-full bg-brand-primary hover:bg-brand-primary-strong text-white shadow-card-soft" disabled={isLoading}>
                 {isLoading ? 'Signing in...' : 'Sign In'}
               </Button>
             </form>
