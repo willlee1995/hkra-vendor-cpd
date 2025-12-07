@@ -7,7 +7,7 @@ import { useVendorAuth } from '@/hooks/useVendorAuth'
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { ArrowLeft, CheckCircle2, XCircle, Calendar, Mail, Phone, Building, Download, RotateCcw } from 'lucide-react'
 import { format } from 'date-fns'
-import { HKRAHeader } from '@/components/vendor/HKRAHeader'
+
 import { useState, useEffect } from 'react'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
@@ -261,7 +261,7 @@ export function AdminRequestDetail() {
 
     return (
         <div className="min-h-screen bg-background">
-            <HKRAHeader showSignOut />
+            {/* HKRAHeader removed - using BrandHeader via AppShell */}
             <div className="container mx-auto px-4 py-4 border-b">
                 <Button variant="ghost" size="sm" onClick={() => navigate('/admin/dashboard')}>
                     <ArrowLeft className="mr-2 h-4 w-4" />

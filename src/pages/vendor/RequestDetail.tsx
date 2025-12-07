@@ -7,7 +7,7 @@ import { useVendorRequest, useWithdrawVendorRequest } from '@/hooks/useVendorReq
 import { ArrowLeft, Edit, Download, Calendar, Mail, Phone, Building } from 'lucide-react'
 import { format } from 'date-fns'
 import { getDisplayableUrl, normalizeStorageUrl, extractStoragePath, getSignedUrl } from '@/lib/storageUtils'
-import { HKRAHeader } from '@/components/vendor/HKRAHeader'
+
 import { useState, useEffect } from 'react'
 import { toast } from 'sonner'
 
@@ -89,7 +89,7 @@ export function RequestDetail() {
 
   return (
     <div className="min-h-screen bg-background">
-      <HKRAHeader />
+      {/* HKRAHeader removed - using BrandHeader via AppShell */}
       <div className="container mx-auto px-4 py-4 border-b">
         <Link to="/vendor/dashboard">
           <Button variant="ghost" size="sm">

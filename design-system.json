@@ -1,0 +1,343 @@
+{
+  "meta": {
+    "name": "Creator Dashboard Design System",
+    "version": "1.0.0",
+    "description": "Comprehensive design and implementation guide for the Creator Analytics dashboard built with Vite, React, and Tailwind CSS v4. This file is intended for AI and developers to use as the single source of truth when adding or modifying UI in this app.",
+    "tech_stack": {
+      "framework": "React (functional components, TSX)",
+      "styling": "Tailwind CSS v4 using @import \"tailwindcss\" and @theme tokens defined in src/style.css",
+      "build_tool": "Vite + Bun"
+    },
+    "entry_points": {
+      "root_component": "src/App.tsx",
+      "styles": "src/style.css"
+    }
+  },
+  "foundations": {
+    "layout": {
+      "page_shell": "Three-part layout: top brand header, left sidebar navigation (desktop), right main content area with optional right rail.",
+      "max_width": 960,
+      "page_wrapper_classes": "flex min-h-screen flex-col bg-neutral-background-page font-sans text-neutral-ink-medium",
+      "content_container_classes": "mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-8",
+      "grid_system": {
+        "main_grid_classes": "grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]",
+        "stat_cards_grid": "grid gap-4 sm:grid-cols-2 xl:grid-cols-3",
+        "secondary_grid": "grid gap-6 md:grid-cols-2"
+      },
+      "responsive_behavior": [
+        "Sidebar hidden on small screens: use `hidden md:flex`.",
+        "Padding increases on md and above using `md:px-6 md:py-8`.",
+        "Card grids switch from single column to multi-column using `sm:grid-cols-*`, `md:grid-cols-*`, `lg:grid-cols-*`."
+      ]
+    },
+    "spacing": {
+      "scale_in_px": {
+        "4": 16,
+        "5": 20,
+        "6": 24,
+        "8": 32
+      },
+      "usage": {
+        "card_padding": "Use `p-4` inside cards (16px).",
+        "section_spacing": "Use `mb-6 md:mb-8` between major sections.",
+        "item_gap": "Use `gap-3` or `gap-4` for spacing inside flex groups and grids."
+      }
+    },
+    "colors": {
+      "definition_source": "All design tokens are defined via Tailwind v4 @theme in src/style.css as CSS variables. Use Tailwind utilities like bg-brand-primary, text-neutral-ink-medium, etc.",
+      "tokens": {
+        "brand": {
+          "primary": "--color-brand-primary (#5C1DB4) used for main header and primary buttons.",
+          "primary_soft": "--color-brand-primary-soft (#EEE6FF) used for avatars and soft backgrounds.",
+          "primary_strong": "--color-brand-primary-strong (#42128A) used for primary hover states.",
+          "secondary": "--color-brand-secondary (#2563EB) used for secondary accents and active nav.",
+          "secondary_soft": "--color-brand-secondary-soft (#E0EDFF) used for active sidebar background.",
+          "teal": "--color-brand-teal (#10B9A8) optional accent.",
+          "amber": "--color-brand-amber (#FFB020) optional accent."
+        },
+        "neutrals": {
+          "ink_strong": "--color-neutral-ink-strong (#111827) for main headings.",
+          "ink_medium": "--color-neutral-ink-medium (#4B5563) default body text.",
+          "ink_muted": "--color-neutral-ink-muted (#6B7280) for secondary text.",
+          "border_subtle": "--color-neutral-border-subtle (#E5E7EB) default borders.",
+          "border_strong": "--color-neutral-border-strong (#CBD5E1) for stronger dividers.",
+          "background_page": "--color-neutral-background-page (#F5F7FB) body background.",
+          "background_card": "--color-neutral-background-card (#FFFFFF) card background.",
+          "background_alt": "--color-neutral-background-alt (#F3F4F6) subtle alt background.",
+          "background_header": "--color-neutral-background-header (#FFFFFF) internal header backgrounds."
+        },
+        "semantic": {
+          "info": "--color-semantic-info (#2563EB)",
+          "info_soft": "--color-semantic-info-soft (#E0EDFF)",
+          "success": "--color-semantic-success (#22C55E)",
+          "success_soft": "--color-semantic-success-soft (#DCFCE7)",
+          "warning": "--color-semantic-warning (#F59E0B)",
+          "warning_soft": "--color-semantic-warning-soft (#FEF3C7)",
+          "danger": "--color-semantic-danger (#EF4444)",
+          "danger_soft": "--color-semantic-danger-soft (#FEE2E2)"
+        }
+      },
+      "common_tailwind_utilities": [
+        "bg-brand-primary",
+        "bg-brand-primary-soft",
+        "bg-brand-secondary-soft",
+        "text-brand-secondary",
+        "bg-neutral-background-page",
+        "bg-neutral-background-card",
+        "bg-neutral-background-alt",
+        "border-neutral-border-subtle",
+        "text-neutral-ink-strong",
+        "text-neutral-ink-muted",
+        "bg-semantic-success-soft",
+        "text-semantic-success"
+      ]
+    },
+    "typography": {
+      "base": "Use Inter / system sans, configured in src/style.css body base styles.",
+      "classes": {
+        "page_title": "text-2xl md:text-3xl font-semibold text-neutral-ink-strong",
+        "section_title": "text-sm font-semibold text-neutral-ink-strong",
+        "label": "text-xs font-medium uppercase tracking-wide text-neutral-ink-muted",
+        "body": "text-sm text-neutral-ink-medium",
+        "caption": "text-xs text-neutral-ink-muted"
+      },
+      "principles": [
+        "Use sentence case for all headings and labels.",
+        "Left-align text; avoid centering except in very small elements.",
+        "Use font-semibold for titles and key metrics, regular weight for descriptions."
+      ]
+    },
+    "radii_and_shadows": {
+      "radii": {
+        "card": "rounded-md",
+        "button": "rounded-md",
+        "avatar": "rounded-full",
+        "pill": "rounded-pill (custom radius from @theme, matches fully rounded chips)."
+      },
+      "shadows": {
+        "card_soft": "shadow-card-soft",
+        "card_subtle": "shadow-card-subtle",
+        "modal": "shadow-modal"
+      },
+      "usage": {
+        "cards": "Use `rounded-md shadow-card-soft bg-neutral-background-card`.",
+        "subtle_elements": "Use `shadow-card-subtle` on small buttons or chips when needed.",
+        "modals": "Use `shadow-modal` on any floating overlay."
+      }
+    }
+  },
+  "components": {
+    "AppShell": {
+      "purpose": "Overall frame containing brand header, sidebar, and main content.",
+      "layout": {
+        "root_classes": "flex min-h-screen flex-col bg-neutral-background-page font-sans text-neutral-ink-medium",
+        "body_wrapper": "flex flex-1"
+      },
+      "usage_notes": [
+        "Always wrap primary pages in this shell for consistent background and typography.",
+        "Any new route/page should mount inside the existing AppShell main area."
+      ]
+    },
+    "BrandHeader": {
+      "description": "Purple band at the top with product identity and user avatar.",
+      "classes": {
+        "container": "bg-brand-primary text-white shadow-card-subtle",
+        "inner": "mx-auto flex max-w-6xl items-center justify-between px-4 py-3 md:px-6",
+        "logo_block": "flex items-center gap-3",
+        "logo_mark": "flex h-9 w-9 items-center justify-center rounded-lg bg-white/10 text-sm font-semibold",
+        "product_label": "text-xs font-medium uppercase tracking-wide text-white/80",
+        "product_title": "text-lg font-semibold",
+        "avatar": "flex h-9 w-9 items-center justify-center rounded-full bg-brand-primary-soft text-xs font-semibold text-brand-primary"
+      },
+      "guidelines": [
+        "Do not change background color; keep it `bg-brand-primary` for brand recognition.",
+        "Right-hand actions (help, avatar, notifications) should remain horizontally aligned.",
+        "Use short, descriptive titles reflecting the current page."
+      ]
+    },
+    "Sidebar": {
+      "description": "Left navigation list, visible on md+ screens.",
+      "classes": {
+        "container": "hidden w-60 flex-col border-r border-neutral-border-subtle bg-white md:flex",
+        "header": "border-b border-neutral-border-subtle px-4 py-4",
+        "header_label": "text-xs font-semibold uppercase tracking-wide text-neutral-ink-muted",
+        "nav": "flex flex-1 flex-col gap-1 px-2 py-4"
+      },
+      "item_component": {
+        "component": "SidebarItem in src/App.tsx",
+        "props": {
+          "label": "string",
+          "active": "boolean (optional)"
+        },
+        "base_classes": "flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium",
+        "active_classes": "bg-brand-secondary-soft text-brand-secondary",
+        "inactive_classes": "text-neutral-ink-medium hover:bg-neutral-background-alt",
+        "active_indicator": "h-5 w-1 rounded-full bg-brand-secondary (right side)"
+      },
+      "guidelines": [
+        "Limit sidebar items to clear, high-level sections.",
+        "Mark at most one item active at a time.",
+        "On new pages, reuse SidebarItem with proper active state instead of creating new markup."
+      ]
+    },
+    "PageHeader": {
+      "description": "Header at top of main content with title, description, and primary actions.",
+      "classes": {
+        "container": "mb-6 flex flex-col gap-4 md:mb-8 md:flex-row md:items-center md:justify-between",
+        "title": "text-2xl font-semibold text-neutral-ink-strong md:text-3xl",
+        "description": "mt-1 text-sm text-neutral-ink-muted",
+        "actions": "flex items-center gap-3"
+      },
+      "default_actions": {
+        "secondary_button": "inline-flex h-9 items-center rounded-md border border-neutral-border-subtle bg-white px-3 text-sm font-medium text-neutral-ink-medium shadow-card-subtle hover:bg-neutral-background-alt",
+        "primary_button": "inline-flex h-9 items-center rounded-md bg-brand-primary px-4 text-sm font-medium text-white shadow-card-soft hover:bg-brand-primary-strong"
+      },
+      "guidelines": [
+        "Primary action should be rightmost, high-contrast (brand purple).",
+        "Use at most two primary/secondary actions to avoid clutter.",
+        "Description should be one short sentence explaining the page."
+      ]
+    },
+    "Card": {
+      "description": "Generic card container used for stats, charts, lists, and side panels.",
+      "base_classes": "rounded-md bg-neutral-background-card p-4 shadow-card-soft",
+      "variants": {
+        "subtle": "shadow-card-subtle border border-neutral-border-subtle bg-white",
+        "bordered_hover": "rounded-md border border-transparent hover:border-neutral-border-subtle hover:bg-neutral-background-alt/40"
+      },
+      "usage": [
+        "Always use `rounded-md` and either `shadow-card-soft` or a border to separate from the page background.",
+        "Keep card content left-aligned with consistent internal padding `p-4`.",
+        "Use meaningful card titles in `text-sm font-semibold`."
+      ]
+    },
+    "StatCard": {
+      "description": "Small metric card used at the top of the overview.",
+      "layout_classes": "rounded-md bg-neutral-background-card p-4 shadow-card-soft",
+      "elements": {
+        "label": "text-xs font-medium uppercase tracking-wide text-neutral-ink-muted",
+        "value": "mt-3 text-2xl font-semibold text-neutral-ink-strong",
+        "delta_positive": "rounded-pill bg-semantic-success-soft px-2 py-0.5 text-xs font-medium text-semantic-success",
+        "delta_negative": "rounded-pill bg-semantic-danger-soft px-2 py-0.5 text-xs font-medium text-semantic-danger",
+        "meta": "mt-1 text-xs text-neutral-ink-muted"
+      },
+      "guidelines": [
+        "Use one main number per StatCard.",
+        "Always include context (e.g., `vs last 28 days`) in meta text.",
+        "Use success styling for positive deltas and danger styling for negative deltas."
+      ]
+    },
+    "ChartCard": {
+      "description": "Card showing time-series performance with a chart placeholder.",
+      "classes": {
+        "container": "flex flex-col justify-between rounded-md bg-neutral-background-card p-4 shadow-card-soft",
+        "header": "mb-3 flex items-center justify-between",
+        "title": "text-sm font-semibold text-neutral-ink-strong",
+        "subtitle": "text-xs text-neutral-ink-muted",
+        "select": "rounded-md border border-neutral-border-subtle bg-white px-2 py-1 text-xs text-neutral-ink-medium",
+        "chart_wrapper": "mt-2 flex flex-1 items-center justify-center rounded-md bg-gradient-to-tr from-brand-primary-soft via-neutral-background-page to-brand-secondary-soft p-4",
+        "chart_placeholder": "h-32 w-full max-w-sm rounded-md border border-dashed border-neutral-border-subtle bg-white/60"
+      },
+      "guidelines": [
+        "When integrating a real chart library, keep the surrounding layout and padding identical.",
+        "Maintain the gradient background behind the chart for visual depth."
+      ]
+    },
+    "RecentContentList": {
+      "description": "Card listing recent pieces of content with platform, published time, and performance.",
+      "classes": {
+        "container": "rounded-md bg-neutral-background-card p-4 shadow-card-soft",
+        "header": "mb-3 flex items-center justify-between",
+        "item": "flex items-start justify-between gap-3 rounded-md border border-transparent p-2 hover:border-neutral-border-subtle hover:bg-neutral-background-alt/40",
+        "title": "text-sm font-medium text-neutral-ink-strong",
+        "meta_row": "mt-1 flex flex-wrap items-center gap-2 text-xs text-neutral-ink-muted",
+        "platform_chip": "rounded-pill bg-neutral-background-alt px-2 py-0.5",
+        "stats": "text-right text-xs text-neutral-ink-muted",
+        "views": "font-semibold text-neutral-ink-strong"
+      },
+      "guidelines": [
+        "Use one line title with ellipsis handling at the React level if needed.",
+        "Platform chip and published time should be concise, not wrapping into multiple lines when possible."
+      ]
+    },
+    "SummaryPanel": {
+      "description": "Right-hand summary card with key metrics and status pill.",
+      "classes": {
+        "container": "rounded-md bg-neutral-background-card p-4 shadow-card-soft",
+        "status_pill": "rounded-pill bg-semantic-success-soft px-2 py-0.5 text-xs font-medium text-semantic-success",
+        "list": "space-y-3 text-xs text-neutral-ink-muted",
+        "row": "flex items-center justify-between",
+        "value": "font-semibold text-neutral-ink-strong"
+      },
+      "guidelines": [
+        "Use definition-list semantics (`<dl>`, `<dt>`, `<dd>`) when possible.",
+        "First line should summarise key context (e.g., audience, status)."
+      ]
+    },
+    "TopCreatorsList": {
+      "description": "Card showing top creators with avatars and stats.",
+      "classes": {
+        "container": "rounded-md bg-neutral-background-card p-4 shadow-card-soft",
+        "item": "flex items-center justify-between",
+        "avatar": "flex h-8 w-8 items-center justify-center rounded-full bg-brand-primary-soft text-xs font-semibold text-brand-primary",
+        "name": "text-sm font-medium text-neutral-ink-strong",
+        "handle": "text-xs text-neutral-ink-muted",
+        "views": "text-xs text-neutral-ink-muted",
+        "views_value": "font-semibold text-neutral-ink-strong"
+      },
+      "guidelines": [
+        "Avatar initials are derived from the creator name; keep two-letter max.",
+        "Right-aligned views text should remain compact (`{value} views`)."
+      ]
+    },
+    "Buttons": {
+      "primary": {
+        "description": "Highest-emphasis CTA.",
+        "classes": "inline-flex h-9 items-center rounded-md bg-brand-primary px-4 text-sm font-medium text-white shadow-card-soft hover:bg-brand-primary-strong"
+      },
+      "secondary": {
+        "description": "Low-emphasis but important actions.",
+        "classes": "inline-flex h-9 items-center rounded-md border border-neutral-border-subtle bg-white px-3 text-sm font-medium text-neutral-ink-medium shadow-card-subtle hover:bg-neutral-background-alt"
+      },
+      "link": {
+        "description": "Text-only actions like \"View all\" and \"Manage\".",
+        "classes": "text-xs font-medium text-brand-secondary hover:underline"
+      }
+    },
+    "BadgesAndPills": {
+      "status_positive": "rounded-pill bg-semantic-success-soft px-2 py-0.5 text-xs font-medium text-semantic-success",
+      "status_info": "rounded-pill bg-semantic-info-soft px-2 py-0.5 text-xs font-medium text-semantic-info",
+      "platform_chip": "rounded-pill bg-neutral-background-alt px-2 py-0.5 text-xs text-neutral-ink-muted"
+    }
+  },
+  "guidelines": {
+    "visual_style": [
+      "Maintain a clean, medical-adjacent SaaS feel: white cards on a soft neutral page background, with purple and blue accents.",
+      "Use card-based layouts for all major groupings of content; avoid placing raw controls directly on the page background.",
+      "Keep shadows subtle and radii moderate to avoid overly playful aesthetics."
+    ],
+    "layout_principles": [
+      "Use the existing max-width container (`max-w-6xl`) for all primary pages.",
+      "Respect the main grid pattern: left column for primary analytics, right column for summaries and secondary context.",
+      "Favor stacked cards with clear headings instead of long, scrolling single sections."
+    ],
+    "interaction_principles": [
+      "Every interactive element must have a hover state (background tint, border, or color change) and clear focus outline handled by browser default or future refinement.",
+      "Primary actions should be obvious and visually distinct (brand purple) but not overwhelming.",
+      "Avoid heavy animations; simple hover and subtle transitions are sufficient."
+    ],
+    "accessibility": [
+      "Maintain high contrast between text and backgrounds, especially on colored surfaces.",
+      "Ensure clickable areas are at least 40px in height (`h-9` or larger).",
+      "Use semantic HTML elements where possible (buttons for actions, lists for lists, headings in order)."
+    ],
+    "when_building_new_features": [
+      "Start by deciding which existing card type (StatCard, ChartCard, ListCard, SummaryPanel) best fits the new UI before inventing a new pattern.",
+      "Reuse existing Tailwind utility patterns and tokens defined in this file and in src/style.css; avoid introducing raw hex colors or arbitrary spacing unless absolutely necessary.",
+      "Preserve the main page header layout and the left sidebar so that new pages feel consistent with the current dashboard.",
+      "If you need a new component, design it as a composition of these primitives and describe it in terms of Tailwind classes similar to existing components."
+    ]
+  }
+}
+
+

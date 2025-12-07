@@ -6,7 +6,7 @@ import { useVendorRequest, useUpdateVendorRequest } from '@/hooks/useVendorReque
 import { ArrowLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { format } from 'date-fns'
-import { HKRAHeader } from '@/components/vendor/HKRAHeader'
+
 
 export function RequestEdit() {
   const { id } = useParams<{ id: string }>()
@@ -47,7 +47,7 @@ export function RequestEdit() {
   if (request.status !== 'pending') {
     return (
       <div className="min-h-screen bg-background">
-        <HKRAHeader />
+        {/* HKRAHeader removed - using BrandHeader via AppShell */}
         <div className="container mx-auto px-4 py-4 border-b">
           <Link to={`/vendor/request/${id}`}>
             <Button variant="ghost" size="sm">
@@ -91,7 +91,7 @@ export function RequestEdit() {
 
   return (
     <div className="min-h-screen bg-background">
-      <HKRAHeader />
+      {/* HKRAHeader removed - using BrandHeader via AppShell */}
       <div className="container mx-auto px-4 py-4 border-b">
         <Link to={`/vendor/request/${id}`}>
           <Button variant="ghost" size="sm">
