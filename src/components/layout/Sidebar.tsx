@@ -13,8 +13,8 @@ function SidebarItem({ icon: Icon, label, to, active }: SidebarItemProps) {
         <Link
             to={to}
             className={`flex items-center justify-between rounded-md px-3 py-2 text-sm font-medium transition-colors ${active
-                    ? 'bg-brand-secondary-soft text-brand-secondary'
-                    : 'text-neutral-ink-medium hover:bg-neutral-background-alt'
+                ? 'bg-brand-secondary-soft text-brand-secondary'
+                : 'text-neutral-ink-medium hover:bg-neutral-background-alt'
                 }`}
         >
             <div className="flex items-center gap-3">
@@ -33,13 +33,13 @@ export function Sidebar() {
     const path = location.pathname
 
     return (
-        <aside className="hidden w-60 flex-col border-r border-neutral-border-subtle bg-white md:flex">
+        <aside className="sticky top-0 hidden h-full w-60 flex-shrink-0 flex-col border-r border-neutral-border-subtle bg-neutral-background-card md:flex">
             <div className="border-b border-neutral-border-subtle px-4 py-4">
                 <div className="text-xs font-semibold uppercase tracking-wide text-neutral-ink-muted">
                     Menu
                 </div>
             </div>
-            <nav className="flex flex-1 flex-col gap-1 px-2 py-4">
+            <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-2 py-4">
                 <SidebarItem
                     icon={LayoutDashboard}
                     label="Dashboard"

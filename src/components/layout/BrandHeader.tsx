@@ -50,7 +50,7 @@ export function BrandHeader() {
                 <User className="h-5 w-5" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="bg-neutral-background-card border-neutral-border-subtle text-neutral-ink-medium">
+            <DropdownMenuContent align="end" className="bg-popover border-neutral-border-subtle text-popover-foreground">
               <DropdownMenuItem onClick={() => signOut()} className="text-semantic-danger focus:text-semantic-danger focus:bg-semantic-danger-soft">
                 <LogOut className="mr-2 h-4 w-4" />
                 Sign Out

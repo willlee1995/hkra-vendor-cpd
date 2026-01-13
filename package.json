@@ -7,7 +7,11 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy:pages": "npm run build && wrangler pages deploy dist",
+    "deploy:worker": "bun run build && wrangler deploy",
+    "cf:login": "wrangler login",
+    "cf:dev": "wrangler pages dev dist"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -29,7 +33,7 @@
     "lucide-react": "^0.553.0",
     "next-themes": "^0.4.6",
     "react": "^19.2.0",
-    "react-day-picker": "^9.11.1",
+    "react-day-picker": "^9.13.0",
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.66.0",
     "react-router-dom": "^7.9.5",
@@ -50,6 +54,7 @@
     "globals": "^16.5.0",
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.3",
-    "vite": "^7.2.2"
+    "vite": "^7.2.2",
+    "wrangler": "^3.0.0"
   }
 }

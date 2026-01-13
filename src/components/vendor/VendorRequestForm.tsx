@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react'
 import { useForm } from '@tanstack/react-form'
-import { zodValidator } from '@tanstack/zod-form-adapter'
 import { z } from 'zod'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -8,19 +7,35 @@ import { Label } from '@/components/ui/label'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { format } from 'date-fns'
-import { CalendarIcon, Upload } from 'lucide-react'
+import { CalendarIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useUploadPoster } from '@/hooks/useVendorRequests'
 import { toast } from 'sonner'
 import { normalizeStorageUrl } from '@/lib/storageUtils'
 import type { CreateVendorRequestInput, UpdateVendorRequestInput } from '@/lib/vendorTypes'
+import { TimePicker } from '@/components/ui/datetime-picker'
+
+const timeToDate = (timeStr: string) => {
+  if (!timeStr) return undefined
+  const parts = timeStr.split(':').map(Number)
+  const date = new Date()
+  date.setHours(parts[0] || 0, parts[1] || 0, parts[2] || 0, 0)
+  return date
+}
+
+const dateToTime = (date: Date | undefined) => {
+  if (!date) return ''
+  const h = String(date.getHours()).padStart(2, '0')
+  const m = String(date.getMinutes()).padStart(2, '0')
+  return `${h}:${m}`
+}
 
 const requestSchema = z.object({
   event_name: z.string().min(1, 'Event name is required'),
-  event_start_date: z.date({ required_error: 'Start date is required' }),
-  event_end_date: z.date({ required_error: 'End date is required' }),
-  event_start_time: z.string().min(1, 'Start time is required'),
-  event_end_time: z.string().min(1, 'End time is required'),
+  event_start_date: z.date({ message: 'Start date is required' }),
+  event_end_date: z.date({ message: 'End date is required' }),
+  event_start_time: z.string().min(1, 'Start time is required').regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Invalid time format (HH:MM)'),
+  event_end_time: z.string().min(1, 'End time is required').regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Invalid time format (HH:MM)'),
   vendor_company_name: z.string().min(1, 'Company name is required').optional().or(z.literal('')),
   contact_name: z.string().min(1, 'Contact name is required').optional().or(z.literal('')),
   contact_email: z.preprocess(
@@ -174,10 +189,6 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
       zoom_webinar_id: initialValues?.zoom_webinar_id || '',
       expected_promotion_date: initialValues?.expected_promotion_date || undefined,
     },
-    validatorAdapter: zodValidator(),
-    defaultMeta: {
-      isTouched: false,
-    },
     onSubmit: async ({ value }) => {
       try {
         // Validate required fields
@@ -284,9 +295,9 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
     setSubmitError(null)
 
     // Mark all required fields as touched so errors will show
-    const requiredFields = ['event_name', 'event_start_date', 'event_end_date', 'event_start_time', 'event_end_time']
+    const requiredFields = ['event_name', 'event_start_date', 'event_end_date', 'event_start_time', 'event_end_time'] as const
     requiredFields.forEach(fieldName => {
-      form.setFieldMeta(fieldName, (prev) => ({ ...prev, isTouched: true }))
+      form.setFieldMeta(fieldName as any, (prev) => ({ ...prev, isTouched: true }))
     })
 
     // Validate all fields first and wait for completion
@@ -310,10 +321,16 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
     // Ensure dates are Date objects (they might be serialized as strings)
     const valuesForValidation = {
       ...values,
-      event_start_date: values.event_start_date instanceof Date ? values.event_start_date : (values.event_start_date ? new Date(values.event_start_date) : undefined),
-      event_end_date: values.event_end_date instanceof Date ? values.event_end_date : (values.event_end_date ? new Date(values.event_end_date) : undefined),
+      event_start_date: (values.event_start_date && typeof values.event_start_date === 'object' && 'getTime' in values.event_start_date)
+        ? values.event_start_date as Date
+        : (values.event_start_date ? new Date(values.event_start_date as string) : undefined),
+      event_end_date: (values.event_end_date && typeof values.event_end_date === 'object' && 'getTime' in values.event_end_date)
+        ? values.event_end_date as Date
+        : (values.event_end_date ? new Date(values.event_end_date as string) : undefined),
       expected_promotion_date: values.expected_promotion_date ?
-        (values.expected_promotion_date instanceof Date ? values.expected_promotion_date : new Date(values.expected_promotion_date)) :
+        ((values.expected_promotion_date && typeof values.expected_promotion_date === 'object' && 'getTime' in values.expected_promotion_date)
+          ? values.expected_promotion_date as Date
+          : new Date(values.expected_promotion_date as string)) :
         undefined,
     }
     const schemaResult = requestSchema.safeParse(valuesForValidation)
@@ -358,16 +375,15 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
       try {
         const submitData: CreateVendorRequestInput = {
           event_name: values.event_name,
-          event_start_date: valuesForValidation.event_start_date.toISOString().split('T')[0],
-          event_end_date: valuesForValidation.event_end_date.toISOString().split('T')[0],
+          event_start_date: valuesForValidation.event_start_date!.toISOString().split('T')[0],
+          event_end_date: valuesForValidation.event_end_date!.toISOString().split('T')[0],
           event_start_time: values.event_start_time,
           event_end_time: values.event_end_time,
-          expected_cpd_points: values.expected_cpd_points,
           vendor_company_name: values.vendor_company_name || undefined,
           contact_name: values.contact_name || undefined,
           contact_email: values.contact_email || undefined,
           contact_phone: values.contact_phone || undefined,
-          poster_file_url: values.poster_file_url || undefined,
+          poster_file_url: Array.isArray(values.poster_file_url) ? values.poster_file_url : (values.poster_file_url ? [values.poster_file_url] : undefined),
           expected_promotion_date: valuesForValidation.expected_promotion_date?.toISOString().split('T')[0] || undefined,
         }
 
@@ -386,7 +402,7 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
     // If form is invalid, has schema errors, or missing required fields, show them
     if (hasFormErrors || hasSchemaErrors || missingRequiredFields.length > 0) {
       // Try to get first error from any field
-      const fieldNames = Object.keys(formState.fieldMeta)
+      const fieldNames = Object.keys(formState.fieldMeta) as Array<keyof typeof formState.fieldMeta>
       let firstErrorMsg: string | null = null
 
       for (const fieldName of fieldNames) {
@@ -440,9 +456,6 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
     >
       <form.Field
         name="event_name"
-        validators={{
-          onChange: zodValidator(z.string().min(1, 'Event name is required')),
-        }}
       >
         {(field) => (
           <div className="space-y-2">
@@ -469,9 +482,6 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <form.Field
           name="event_start_date"
-          validators={{
-            onChange: zodValidator(z.date({ required_error: 'Start date is required' })),
-          }}
         >
           {(field) => (
             <div className="space-y-2">
@@ -495,11 +505,11 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
                     selected={field.state.value}
                     onSelect={(date) => {
                       if (date) {
-                        field.handleChange(date)
+                        field.handleChange(date as any)
                         // Auto-set end date to start date if end date is not set
                         const currentEndDate = form.state.values.event_end_date
                         if (!currentEndDate) {
-                          form.setFieldValue('event_end_date', date)
+                          form.setFieldValue('event_end_date', date as any)
                         }
                       }
                     }}
@@ -519,9 +529,6 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
 
         <form.Field
           name="event_end_date"
-          validators={{
-            onChange: zodValidator(z.date({ required_error: 'End date is required' })),
-          }}
         >
           {(field) => (
             <div className="space-y-2">
@@ -545,7 +552,7 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
                     selected={field.state.value}
                     onSelect={(date) => {
                       if (date) {
-                        field.handleChange(date)
+                        field.handleChange(date as any)
                       }
                     }}
                     initialFocus
@@ -566,23 +573,17 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <form.Field
           name="event_start_time"
-          validators={{
-            onChange: zodValidator(z.string().min(1, 'Start time is required')),
-          }}
         >
           {(field) => (
             <div className="space-y-2">
               <Label htmlFor={field.name}>Event Start Time *</Label>
-              <Input
-                id={field.name}
-                type="time"
-                required
-                step="60"
-                value={field.state.value}
-                onChange={(e) => field.handleChange(e.target.value)}
-                onBlur={field.handleBlur}
-                className="cursor-pointer"
-              />
+              <div className="flex items-center">
+                <TimePicker
+                  date={timeToDate(field.state.value)}
+                  onChange={(date) => field.handleChange(dateToTime(date))}
+                  granularity="minute"
+                />
+              </div>
               {(() => {
                 const errorMsg = getErrorMessage(field.state.meta.errors, field.state.meta.errorMap)
                 const hasErrors = field.state.meta.errors.length > 0 || (field.state.meta.errorMap && Object.keys(field.state.meta.errorMap).length > 0)
@@ -597,23 +598,17 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
 
         <form.Field
           name="event_end_time"
-          validators={{
-            onChange: zodValidator(z.string().min(1, 'End time is required')),
-          }}
         >
           {(field) => (
             <div className="space-y-2">
               <Label htmlFor={field.name}>Event End Time *</Label>
-              <Input
-                id={field.name}
-                type="time"
-                required
-                step="60"
-                value={field.state.value}
-                onChange={(e) => field.handleChange(e.target.value)}
-                onBlur={field.handleBlur}
-                className="cursor-pointer"
-              />
+              <div className="flex items-center">
+                <TimePicker
+                  date={timeToDate(field.state.value)}
+                  onChange={(date) => field.handleChange(dateToTime(date))}
+                  granularity="minute"
+                />
+              </div>
               {(() => {
                 const errorMsg = getErrorMessage(field.state.meta.errors, field.state.meta.errorMap)
                 const hasErrors = field.state.meta.errors.length > 0 || (field.state.meta.errorMap && Object.keys(field.state.meta.errorMap).length > 0)
@@ -656,9 +651,6 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
 
         <form.Field
           name="contact_email"
-          validators={{
-            onChange: zodValidator(z.string().email('Invalid email').optional().or(z.literal(''))),
-          }}
         >
           {(field) => (
             <div className="space-y-2">
@@ -704,7 +696,7 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
 
           const removeFile = (indexToRemove: number) => {
             const updatedUrls = fileUrls.filter((_, index) => index !== indexToRemove)
-            form.setFieldValue('poster_file_url', updatedUrls.length > 0 ? updatedUrls : undefined)
+            form.setFieldValue('poster_file_url', updatedUrls.length > 0 ? updatedUrls : [])
           }
 
           return (
@@ -810,7 +802,7 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
                 <Calendar
                   mode="single"
                   selected={field.state.value}
-                  onSelect={(date) => field.handleChange(date)}
+                  onSelect={(date) => field.handleChange(date as any)}
                   initialFocus
                 />
               </PopoverContent>

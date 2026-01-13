@@ -1,0 +1,23 @@
+name = "hkra-vendor-cpd"
+compatibility_date = "2024-01-01"
+
+# For Cloudflare Pages (recommended for static sites)
+# This configuration works with `wrangler pages deploy`
+
+[env.production]
+name = "hkra-vendor-cpd"
+
+# For Cloudflare Workers (if you need custom routing logic)
+# Uncomment and configure if you need a Worker instead of Pages
+# main = "worker/index.ts"
+# routes = [
+#   { pattern = "your-domain.com/*", zone_name = "your-domain.com" }
+# ]
+
+# Environment variables (set via Cloudflare dashboard or wrangler secret put)
+# [vars]
+# VITE_SUPABASE_URL = ""
+# VITE_SUPABASE_ANON_KEY = ""
+
+
+

@@ -1,11 +1,21 @@
+import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useVendorAuth } from '@/hooks/useVendorAuth'
+import { useVendor } from '@/hooks/useVendor'
 
 export function Settings() {
     const { user } = useVendorAuth()
+    const { data: vendor, isLoading: vendorLoading } = useVendor()
+    const [companyName, setCompanyName] = useState('')
+
+    useEffect(() => {
+        if (vendor?.company_name) {
+            setCompanyName(vendor.company_name)
+        }
+    }, [vendor])
 
     return (
         <div className="mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-8">
@@ -38,7 +48,9 @@ export function Settings() {
                             <Label htmlFor="name" className="text-sm font-medium text-neutral-ink-medium">Company Name</Label>
                             <Input
                                 id="name"
-                                placeholder="Enter company name"
+                                value={companyName}
+                                onChange={(e) => setCompanyName(e.target.value)}
+                                placeholder={vendorLoading ? "Loading..." : "Enter company name"}
                                 className="border-neutral-border-subtle focus:border-brand-primary focus:ring-brand-primary"
                             />
                         </div>

@@ -5,7 +5,6 @@ import { VendorRequestForm } from '@/components/vendor/VendorRequestForm'
 import { useVendorRequest, useUpdateVendorRequest } from '@/hooks/useVendorRequests'
 import { ArrowLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { format } from 'date-fns'
 
 
 export function RequestEdit() {
@@ -111,7 +110,7 @@ export function RequestEdit() {
           </CardHeader>
           <CardContent>
             <VendorRequestForm
-              initialValues={initialValues}
+              initialValues={initialValues as any}
               onSubmit={handleSubmit}
               isLoading={updateRequest.isPending}
             />

@@ -62,12 +62,14 @@ supabase db push
 ### 4. Set Up Storage Buckets
 
 The migrations will create the storage buckets, but you may need to verify they exist in your Supabase dashboard:
+
 - `vendor-posters` - For event poster images
 - `vendor-attendance` - For attendance CSV/XLSX files
 
 ### 5. Create Vendor User Accounts
 
 Vendor accounts need to be created with:
+
 1. A user in Supabase Auth with `role: 'vendor'` in user metadata
 2. A corresponding record in the `vendors` table
 
@@ -76,10 +78,12 @@ Vendor accounts need to be created with:
 Quick methods:
 
 **Method 1: Using Supabase Dashboard + SQL Editor**
+
 1. Go to Authentication > Users > Add User
 2. Create user with email/password
 3. **Note:** Dashboard UI doesn't allow editing user metadata directly
 4. Go to SQL Editor and run:
+
    ```sql
    -- Set role
    UPDATE auth.users
@@ -97,6 +101,7 @@ Quick methods:
    ```
 
 **Method 2: Using Helper Script**
+
 ```bash
 # Set environment variables
 export SUPABASE_URL=your_supabase_url
@@ -108,6 +113,7 @@ bun run scripts/setup-vendor-user.ts vendor@example.com password123 "Company Nam
 
 **Method 3: Using SQL Function**
 After creating auth user, run:
+
 ```sql
 SELECT setup_vendor_user(
   (SELECT id FROM auth.users WHERE email = 'vendor@example.com'),
@@ -149,7 +155,24 @@ supabase functions deploy vendor-requests
 supabase functions deploy vendor-upload
 ```
 
-### 7. Run Development Server
+### 7. Deploy to Cloudflare
+
+**See [docs/DEPLOY_CLOUDFLARE.md](docs/DEPLOY_CLOUDFLARE.md) for detailed deployment instructions.**
+
+Quick deploy:
+
+```bash
+# Install Wrangler CLI (if not already installed)
+npm install -g wrangler
+
+# Login to Cloudflare
+wrangler login
+
+# Build and deploy
+npm run deploy:pages
+```
+
+### 8. Run Development Server
 
 ```bash
 bun dev
@@ -195,6 +218,7 @@ The app will be available at `http://localhost:5173`
 ### Edge Functions
 
 - `vendor-requests` - CRUD operations for requests
+
   - GET `/vendor-requests` - List requests
   - GET `/vendor-requests/:id` - Get single request
   - POST `/vendor-requests` - Create request

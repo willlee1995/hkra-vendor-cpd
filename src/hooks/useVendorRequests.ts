@@ -1,7 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { vendorService } from '@/lib/vendorService'
 import type {
-  VendorRequest,
   CreateVendorRequestInput,
   UpdateVendorRequestInput,
   VendorRequestsFilter,

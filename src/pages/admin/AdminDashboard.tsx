@@ -1,5 +1,4 @@
 import { useState, useMemo } from 'react'
-import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { VendorRequestTable } from '@/components/vendor/VendorRequestTable'
@@ -7,7 +6,6 @@ import { useVendorRequests } from '@/hooks/useVendorRequests'
 
 import { useVendorAuth } from '@/hooks/useVendorAuth'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { Badge } from '@/components/ui/badge'
 import { CheckCircle2, XCircle, Clock, FileX } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
