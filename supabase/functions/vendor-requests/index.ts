@@ -263,7 +263,7 @@ serve(async (req) => {
                 event_end_date: newRequest.event_end_date,
                 event_start_time: newRequest.event_start_time || undefined,
                 event_end_time: newRequest.event_end_time || undefined,
-                    expected_cpd_points: newRequest.expected_cpd_points ? parseFloat(String(newRequest.expected_cpd_points)) : null,
+                expected_cpd_points: newRequest.expected_cpd_points ? parseFloat(String(newRequest.expected_cpd_points)) : null,
                 contact_name: newRequest.contact_name,
                 request_id: newRequest.id,
               }),
@@ -360,10 +360,10 @@ serve(async (req) => {
           )
         }
 
-        // Vendors can only update pending requests, admins can update any
-        if (!isAdmin && existingRequest.status !== 'pending') {
+        // Vendors can only update pending or rejected requests, admins can update any
+        if (!isAdmin && existingRequest.status !== 'pending' && existingRequest.status !== 'rejected') {
           return new Response(
-            JSON.stringify({ error: 'Can only update pending requests' }),
+            JSON.stringify({ error: 'Can only update pending or rejected requests' }),
             { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
@@ -398,9 +398,17 @@ serve(async (req) => {
 
         // Vendors cannot change status (they can only withdraw via DELETE)
         // Admins can change status (approve/reject)
-        if (!isAdmin && updateBody.status) {
-          const { status, ...allowedUpdates } = updateBody
-          updateData = allowedUpdates
+        if (!isAdmin) {
+          if (updateBody.status) {
+            const { status, ...allowedUpdates } = updateBody
+            updateData = allowedUpdates
+          }
+
+          // If vendor is updating a rejected request, reset it to pending
+          if (existingRequest.status === 'rejected') {
+            updateData.status = 'pending'
+            updateData.rejection_reason = null
+          }
         }
 
         // If admin is approving, set approved_by and approved_at
@@ -454,8 +462,8 @@ serve(async (req) => {
                 notes: updateBody.status === 'rejected'
                   ? updateBody.rejection_reason || null
                   : updateBody.status === 'approved'
-                  ? updateBody.admin_notes || null
-                  : null,
+                    ? updateBody.admin_notes || null
+                    : null,
               })
           } catch (historyError) {
             // Log error but don't fail the update
@@ -565,9 +573,9 @@ serve(async (req) => {
           )
         }
 
-        if (requestToWithdraw.status !== 'pending') {
+        if (requestToWithdraw.status !== 'pending' && requestToWithdraw.status !== 'rejected') {
           return new Response(
-            JSON.stringify({ error: 'Can only withdraw pending requests' }),
+            JSON.stringify({ error: 'Can only withdraw pending or rejected requests' }),
             { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }

@@ -108,7 +108,7 @@ export function RequestDetail() {
             </div>
           </div>
           <div className="flex gap-2">
-            {request.status === 'pending' && (
+            {(request.status === 'pending' || request.status === 'rejected') && (
               <>
                 <Link to={`/vendor/request/${id}/edit`}>
                   <Button variant="outline">

@@ -24,7 +24,7 @@ const timeToDate = (timeStr: string) => {
 }
 
 const dateToTime = (date: Date | undefined) => {
-  if (!date) return ''
+  if (!date || isNaN(date.getTime())) return ''
   const h = String(date.getHours()).padStart(2, '0')
   const m = String(date.getMinutes()).padStart(2, '0')
   return `${h}:${m}`
@@ -34,8 +34,8 @@ const requestSchema = z.object({
   event_name: z.string().min(1, 'Event name is required'),
   event_start_date: z.date({ message: 'Start date is required' }),
   event_end_date: z.date({ message: 'End date is required' }),
-  event_start_time: z.string().min(1, 'Start time is required').regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Invalid time format (HH:MM)'),
-  event_end_time: z.string().min(1, 'End time is required').regex(/^([01]\d|2[0-3]):([0-5]\d)$/, 'Invalid time format (HH:MM)'),
+  event_start_time: z.string().min(1, 'Start time is required'),
+  event_end_time: z.string().min(1, 'End time is required'),
   vendor_company_name: z.string().min(1, 'Company name is required').optional().or(z.literal('')),
   contact_name: z.string().min(1, 'Contact name is required').optional().or(z.literal('')),
   contact_email: z.preprocess(
@@ -580,8 +580,9 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
               <div className="flex items-center">
                 <TimePicker
                   date={timeToDate(field.state.value)}
-                  onChange={(date) => field.handleChange(dateToTime(date))}
+                  onChange={(date) => field.handleChange(date ? dateToTime(date) : '')}
                   granularity="minute"
+                  hourCycle={24}
                 />
               </div>
               {(() => {
@@ -605,8 +606,9 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
               <div className="flex items-center">
                 <TimePicker
                   date={timeToDate(field.state.value)}
-                  onChange={(date) => field.handleChange(dateToTime(date))}
+                  onChange={(date) => field.handleChange(date ? dateToTime(date) : '')}
                   granularity="minute"
+                  hourCycle={24}
                 />
               </div>
               {(() => {

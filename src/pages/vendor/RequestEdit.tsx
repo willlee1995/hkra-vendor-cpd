@@ -43,7 +43,7 @@ export function RequestEdit() {
     )
   }
 
-  if (request.status !== 'pending') {
+  if (request.status !== 'pending' && request.status !== 'rejected') {
     return (
       <div className="min-h-screen bg-background">
         {/* HKRAHeader removed - using BrandHeader via AppShell */}
@@ -60,7 +60,7 @@ export function RequestEdit() {
             <CardHeader>
               <CardTitle>Cannot Edit Request</CardTitle>
               <CardDescription>
-                Only pending requests can be edited.
+                Only pending or rejected requests can be edited.
               </CardDescription>
             </CardHeader>
           </Card>
@@ -107,6 +107,20 @@ export function RequestEdit() {
             <CardDescription>
               Update your CPD request details
             </CardDescription>
+            {request.status === 'rejected' && (
+              <div className="mt-4 rounded-md bg-amber-50 p-4 border border-amber-200">
+                <div className="flex">
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-amber-800">Resubmitting Request</h3>
+                    <div className="mt-2 text-sm text-amber-700">
+                      <p>
+                        This request was previously rejected. Saving your changes will automatically resubmit it to the HKRA admin for review.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </CardHeader>
           <CardContent>
             <VendorRequestForm
