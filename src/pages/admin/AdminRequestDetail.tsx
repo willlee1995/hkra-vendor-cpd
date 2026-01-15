@@ -15,6 +15,123 @@ import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { vendorApiClient } from '@/lib/vendorApiClient'
 import { getDisplayableUrl, normalizeStorageUrl, extractStoragePath, getSignedUrl } from '@/lib/storageUtils'
+import {
+    Command,
+    CommandEmpty,
+    CommandGroup,
+    CommandInput,
+    CommandItem,
+    CommandList,
+} from "@/components/ui/command"
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover"
+import { ChevronsUpDown, Check } from "lucide-react"
+import { cn } from "@/lib/utils"
+
+// Common reasons for approval and rejection
+const APPROVAL_REASONS = [
+    "Met all requirements",
+    "Verified with organizer",
+    "Special approval",
+    "Content relevant and appropriate",
+    "Speaker credentials verified",
+]
+
+const REJECTION_REASONS = [
+    "Incomplete documentation",
+    "Invalid CPD points requested",
+    "Duplicate request",
+    "Not relevant to scope",
+    "Missing speaker information",
+    "Event date has passed without proper evidence",
+]
+
+interface ReasonSelectorProps {
+    value: string
+    onChange: (value: string) => void
+    reasons: string[]
+    placeholder: string
+    emptyText?: string
+}
+
+function ReasonSelector({ value, onChange, reasons, placeholder, emptyText = "No reason found." }: ReasonSelectorProps) {
+    const [open, setOpen] = useState(false)
+    const [inputValue, setInputValue] = useState("")
+
+    return (
+        <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger asChild>
+                <Button
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={open}
+                    className="w-full justify-between font-normal"
+                >
+                    {value
+                        ? value
+                        : placeholder}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command>
+                    <CommandInput
+                        placeholder="Search or type custom reason..."
+                        value={inputValue}
+                        onValueChange={setInputValue}
+                    />
+                    <CommandList>
+                        <CommandEmpty>
+                            {inputValue ? (
+                                <div className="p-2">
+                                    <p className="text-sm text-muted-foreground mb-2">"{inputValue}" not found in list.</p>
+                                    <Button
+                                        variant="secondary"
+                                        size="sm"
+                                        className="w-full h-auto py-1"
+                                        onClick={() => {
+                                            onChange(inputValue)
+                                            setOpen(false)
+                                            setInputValue("")
+                                        }}
+                                    >
+                                        Use "{inputValue}"
+                                    </Button>
+                                </div>
+                            ) : (
+                                emptyText
+                            )}
+                        </CommandEmpty>
+                        <CommandGroup>
+                            {reasons.map((reason) => (
+                                <CommandItem
+                                    key={reason}
+                                    value={reason}
+                                    onSelect={(currentValue) => {
+                                        onChange(currentValue)
+                                        setOpen(false)
+                                    }}
+                                >
+                                    <Check
+                                        className={cn(
+                                            "mr-2 h-4 w-4",
+                                            value === reason ? "opacity-100" : "opacity-0"
+                                        )}
+                                    />
+                                    {reason}
+                                </CommandItem>
+                            ))}
+                        </CommandGroup>
+                    </CommandList>
+                </Command>
+            </PopoverContent>
+        </Popover>
+    )
+}
+
 
 // Helper function to format time (HH:MM) to 12-hour format
 const formatTime = (time: string | null | undefined): string => {
@@ -470,13 +587,11 @@ export function AdminRequestDetail() {
                             <CardContent className="space-y-4">
                                 <div>
                                     <Label htmlFor="admin-notes">Admin Notes (Required for approval)</Label>
-                                    <Textarea
-                                        id="admin-notes"
-                                        placeholder="Enter notes about this approval..."
+                                    <ReasonSelector
                                         value={adminNotes}
-                                        onChange={(e) => setAdminNotes(e.target.value)}
-                                        className="mt-2"
-                                        rows={3}
+                                        onChange={setAdminNotes}
+                                        reasons={APPROVAL_REASONS}
+                                        placeholder="Select or type approval reason..."
                                     />
                                 </div>
                                 <div>
@@ -498,13 +613,11 @@ export function AdminRequestDetail() {
                                 </div>
                                 <div>
                                     <Label htmlFor="rejection-reason">Rejection Reason (Required for rejection)</Label>
-                                    <Textarea
-                                        id="rejection-reason"
-                                        placeholder="Enter reason for rejection..."
+                                    <ReasonSelector
                                         value={rejectionReason}
-                                        onChange={(e) => setRejectionReason(e.target.value)}
-                                        className="mt-2"
-                                        rows={3}
+                                        onChange={setRejectionReason}
+                                        reasons={REJECTION_REASONS}
+                                        placeholder="Select or type rejection reason..."
                                     />
                                 </div>
                                 <div className="flex gap-2">

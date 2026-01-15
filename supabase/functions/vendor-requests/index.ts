@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { sendEmail, generateRequestorConfirmationEmail, generateAdminNotificationEmail, generateApprovalEmail, generateRejectionEmail, generateUnapprovalEmail } from './email.ts'
+import { sendEmail, generateRequestorConfirmationEmail, generateAdminNotificationEmail, generateApprovalEmail, generateRejectionEmail, generateUnapprovalEmail, generateAdminApprovalNotificationEmail } from './email.ts'
 
 // Get Supabase credentials from environment variables
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
@@ -64,7 +64,7 @@ serve(async (req) => {
 
     // Check if user is admin
     const userRole = user.user_metadata?.role || user.raw_user_meta_data?.role
-    const isAdmin = userRole === 'admin'
+    const isAdmin = userRole === 'admin' || userRole === 'super-admin'
 
     // Check if user is a vendor (only needed for non-admin users)
     let vendor = null
@@ -286,7 +286,7 @@ serve(async (req) => {
             const adminEmails = allUsers?.users
               ?.filter((user: any) => {
                 const role = user.user_metadata?.role || user.raw_user_meta_data?.role
-                return role === 'admin' && user.email
+                return (role === 'admin' || role === 'super-admin') && user.email
               })
               .map((user: any) => user.email)
               .filter(Boolean) || []
@@ -541,6 +541,53 @@ serve(async (req) => {
           } catch (emailError) {
             // Log error but don't fail the update
             console.error('Failed to send status notification email:', emailError)
+          }
+        }
+
+        // Send notification to OTHER admins if request is approved
+        if (updateBody.status === 'approved' && existingRequest.status !== 'approved') {
+          try {
+            // Query admin users
+            const { data: allUsers, error: listError } = await supabaseClient.auth.admin.listUsers()
+
+            if (listError) {
+              console.error('Failed to list users for admin approval notifications:', listError)
+            } else {
+              // Filter users with admin role, excluding the current approver
+              const otherAdminEmails = allUsers?.users
+                ?.filter((u: any) => {
+                  const role = u.user_metadata?.role || u.raw_user_meta_data?.role
+                  return (role === 'admin' || role === 'super-admin') && u.email && u.id !== user.id
+                })
+                .map((u: any) => u.email)
+                .filter(Boolean) || []
+
+              if (otherAdminEmails.length > 0) {
+                console.log(`Sending admin approval notifications to ${otherAdminEmails.length} other admin(s)`)
+
+                const emailPromises = otherAdminEmails.map((email: string) =>
+                  sendEmail({
+                    to: email,
+                    subject: `CPD Request Approved - ${updatedRequest.event_name}`,
+                    html: generateAdminApprovalNotificationEmail({
+                      event_name: updatedRequest.event_name,
+                      event_start_date: updatedRequest.event_start_date,
+                      event_end_date: updatedRequest.event_end_date,
+                      vendor_company_name: updatedRequest.vendor_company_name,
+                      approved_by_email: user.email || 'Unknown Admin',
+                      approved_at: new Date().toISOString(),
+                      request_id: updatedRequest.id,
+                    }),
+                  }).catch((error) => {
+                    console.error(`Failed to send admin approval notification to ${email}:`, error)
+                  })
+                )
+
+                await Promise.allSettled(emailPromises)
+              }
+            }
+          } catch (adminEmailError) {
+            console.error('Failed to send admin approval notifications:', adminEmailError)
           }
         }
 

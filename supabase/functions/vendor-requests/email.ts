@@ -92,8 +92,8 @@ export function generateRequestorConfirmationEmail(request: {
   const eventDateRange = startTime && endTime
     ? `${startDate} ${startTime} - ${endDate} ${endTime}`
     : startTime
-    ? `${startDate} ${startTime} - ${endDate}`
-    : `${startDate} - ${endDate}`
+      ? `${startDate} ${startTime} - ${endDate}`
+      : `${startDate} - ${endDate}`
 
   return `
     <!DOCTYPE html>
@@ -117,8 +117,8 @@ export function generateRequestorConfirmationEmail(request: {
         <p><strong>Event Name:</strong> ${request.event_name}</p>
         <p><strong>Event Dates:</strong> ${eventDateRange}</p>
         ${request.expected_cpd_points
-          ? '<p><strong>CPD Points:</strong> ' + request.expected_cpd_points + '</p>'
-          : '<p><strong>CPD Points:</strong> To be determined by admin</p>'}
+      ? '<p><strong>CPD Points:</strong> ' + request.expected_cpd_points + '</p>'
+      : '<p><strong>CPD Points:</strong> To be determined by admin</p>'}
         <p><strong>Request ID:</strong> ${request.request_id}</p>
       </div>
 
@@ -193,8 +193,8 @@ export function generateAdminNotificationEmail(request: {
   const eventDateRange = startTime && endTime
     ? `${startDate} ${startTime} - ${endDate} ${endTime}`
     : startTime
-    ? `${startDate} ${startTime} - ${endDate}`
-    : `${startDate} - ${endDate}`
+      ? `${startDate} ${startTime} - ${endDate}`
+      : `${startDate} - ${endDate}`
 
   return `
     <!DOCTYPE html>
@@ -217,8 +217,8 @@ export function generateAdminNotificationEmail(request: {
         <p><strong>Event Name:</strong> ${request.event_name}</p>
         <p><strong>Event Dates:</strong> ${eventDateRange}</p>
         ${request.expected_cpd_points
-          ? '<p><strong>CPD Points:</strong> ' + request.expected_cpd_points + '</p>'
-          : '<p><strong>CPD Points:</strong> To be determined by admin</p>'}
+      ? '<p><strong>CPD Points:</strong> ' + request.expected_cpd_points + '</p>'
+      : '<p><strong>CPD Points:</strong> To be determined by admin</p>'}
         <p><strong>Submitted:</strong> ${createdAt}</p>
       </div>
 
@@ -290,8 +290,8 @@ export function generateApprovalEmail(request: {
   const eventDateRange = startTime && endTime
     ? `${startDate} ${startTime} - ${endDate} ${endTime}`
     : startTime
-    ? `${startDate} ${startTime} - ${endDate}`
-    : `${startDate} - ${endDate}`
+      ? `${startDate} ${startTime} - ${endDate}`
+      : `${startDate} - ${endDate}`
 
   return `
     <!DOCTYPE html>
@@ -378,8 +378,8 @@ export function generateRejectionEmail(request: {
   const eventDateRange = startTime && endTime
     ? `${startDate} ${startTime} - ${endDate} ${endTime}`
     : startTime
-    ? `${startDate} ${startTime} - ${endDate}`
-    : `${startDate} - ${endDate}`
+      ? `${startDate} ${startTime} - ${endDate}`
+      : `${startDate} - ${endDate}`
 
   return `
     <!DOCTYPE html>
@@ -469,8 +469,8 @@ export function generateUnapprovalEmail(request: {
   const eventDateRange = startTime && endTime
     ? `${startDate} ${startTime} - ${endDate} ${endTime}`
     : startTime
-    ? `${startDate} ${startTime} - ${endDate}`
-    : `${startDate} - ${endDate}`
+      ? `${startDate} ${startTime} - ${endDate}`
+      : `${startDate} - ${endDate}`
 
   return `
     <!DOCTYPE html>
@@ -556,8 +556,8 @@ export function generateUnrejectionEmail(request: {
   const eventDateRange = startTime && endTime
     ? `${startDate} ${startTime} - ${endDate} ${endTime}`
     : startTime
-    ? `${startDate} ${startTime} - ${endDate}`
-    : `${startDate} - ${endDate}`
+      ? `${startDate} ${startTime} - ${endDate}`
+      : `${startDate} - ${endDate}`
 
   return `
     <!DOCTYPE html>
@@ -657,8 +657,8 @@ export function generateAttendanceUploadConfirmationEmail(request: {
   const eventDateRange = startTime && endTime
     ? `${startDate} ${startTime} - ${endDate} ${endTime}`
     : startTime
-    ? `${startDate} ${startTime} - ${endDate}`
-    : `${startDate} - ${endDate}`
+      ? `${startDate} ${startTime} - ${endDate}`
+      : `${startDate} - ${endDate}`
 
   return `
     <!DOCTYPE html>
@@ -754,8 +754,8 @@ export function generateAttendanceUploadAdminNotificationEmail(request: {
   const eventDateRange = startTime && endTime
     ? `${startDate} ${startTime} - ${endDate} ${endTime}`
     : startTime
-    ? `${startDate} ${startTime} - ${endDate}`
-    : `${startDate} - ${endDate}`
+      ? `${startDate} ${startTime} - ${endDate}`
+      : `${startDate} - ${endDate}`
 
   return `
     <!DOCTYPE html>
@@ -797,6 +797,84 @@ export function generateAttendanceUploadAdminNotificationEmail(request: {
       <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
       <p style="font-size: 12px; color: #6b7280;">
         This is an automated notification. Please log in to the admin portal to take action.
+      </p>
+    </body>
+    </html>
+  `
+}
+
+/**
+ * Generate admin specific approval notification email HTML (to other admins)
+ */
+export function generateAdminApprovalNotificationEmail(request: {
+  event_name: string
+  event_start_date: string
+  event_end_date: string
+  vendor_company_name: string
+  approved_by_email: string
+  approved_at: string
+  request_id: string
+}): string {
+  const startDate = new Date(request.event_start_date).toLocaleDateString('en-HK', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+  const endDate = new Date(request.event_end_date).toLocaleDateString('en-HK', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  })
+  const approvedAt = new Date(request.approved_at).toLocaleDateString('en-HK', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+
+  // Format date range
+  const eventDateRange = startDate === endDate
+    ? startDate
+    : `${startDate} - ${endDate}`
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Request Approved by Admin</title>
+    </head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background-color: #dbeafe; padding: 20px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #2563eb;">
+        <h1 style="color: #1e40af; margin-top: 0;">ℹ️ Request Approved</h1>
+      </div>
+
+      <p>A CPD request has been approved by an admin.</p>
+
+      <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
+        <h2 style="margin-top: 0; color: #2563eb;">Approval Details</h2>
+        <p><strong>Approved By:</strong> ${request.approved_by_email}</p>
+        <p><strong>Approved At:</strong> ${approvedAt}</p>
+      </div>
+
+      <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; margin: 20px 0;">
+        <h2 style="margin-top: 0; color: #2563eb;">Event Details</h2>
+        <p><strong>Event Name:</strong> ${request.event_name}</p>
+        <p><strong>Vendor:</strong> ${request.vendor_company_name}</p>
+        <p><strong>Event Dates:</strong> ${eventDateRange}</p>
+        <p><strong>Request ID:</strong> ${request.request_id}</p>
+      </div>
+
+      <p>No further action is required from you. This is just for your information.</p>
+
+      <p>Best regards,<br>
+      HKRA CPD System</p>
+
+      <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+      <p style="font-size: 12px; color: #6b7280;">
+        This is an automated notification.
       </p>
     </body>
     </html>

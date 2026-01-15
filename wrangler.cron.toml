@@ -1,0 +1,6 @@
+name = "hkra-vendor-reminders-cron"
+main = "worker/cron.ts"
+compatibility_date = "2024-01-01"
+
+[triggers]
+crons = ["0 0 * * *"] # Run daily at midnight
