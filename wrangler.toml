@@ -1,5 +1,7 @@
-name = "hkra-vendor-cpd"
+name = "hkra-ext"
 compatibility_date = "2024-01-01"
+pages_build_output_dir = "dist"
+
 
 # For Cloudflare Pages (recommended for static sites)
 # This configuration works with `wrangler pages deploy`
