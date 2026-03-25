@@ -26,6 +26,8 @@ export interface VendorRequest {
   contact_phone?: string
   poster_file_url?: string[] // Array of URLs for event-related materials
   zoom_webinar_id?: string // Optional Zoom webinar ID
+  on24_key?: string
+  on24_id?: string
   expected_promotion_date?: string
   status: VendorRequestStatus
   admin_notes?: string
@@ -60,6 +62,8 @@ export interface CreateVendorRequestInput {
   contact_phone?: string
   poster_file_url?: string[] // Array of URLs for event-related materials
   zoom_webinar_id?: string
+  on24_key?: string
+  on24_id?: string
   expected_promotion_date?: string
 }
 
@@ -75,6 +79,9 @@ export interface UpdateVendorRequestInput {
   contact_email?: string
   contact_phone?: string
   poster_file_url?: string[] // Array of URLs for event-related materials
+  zoom_webinar_id?: string
+  on24_key?: string
+  on24_id?: string
   expected_promotion_date?: string
   status?: VendorRequestStatus // Admins can update status
   admin_notes?: string // Admins can add notes

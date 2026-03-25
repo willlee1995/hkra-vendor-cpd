@@ -85,6 +85,8 @@ export function RequestEdit() {
         ? [request.poster_file_url]
         : [],
     zoom_webinar_id: request.zoom_webinar_id,
+    on24_key: request.on24_key,
+    on24_id: request.on24_id,
     expected_promotion_date: request.expected_promotion_date ? new Date(request.expected_promotion_date) : undefined,
   }
 

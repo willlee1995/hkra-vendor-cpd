@@ -58,6 +58,8 @@ const requestSchema = z.object({
     z.array(z.string().url()).min(1, 'At least one event-related material file is required')
   ),
   zoom_webinar_id: z.string().optional().or(z.literal('')),
+  on24_key: z.string().optional().or(z.literal('')),
+  on24_id: z.string().optional().or(z.literal('')),
   expected_promotion_date: z.date().optional(),
 }).refine((data) => data.event_end_date >= data.event_start_date, {
   message: 'End date must be after start date',
@@ -187,6 +189,8 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
           ? [initialValues.poster_file_url]
           : [],
       zoom_webinar_id: initialValues?.zoom_webinar_id || '',
+      on24_key: initialValues?.on24_key || '',
+      on24_id: initialValues?.on24_id || '',
       expected_promotion_date: initialValues?.expected_promotion_date || undefined,
     },
     onSubmit: async ({ value }) => {
@@ -208,6 +212,8 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
           contact_phone: value.contact_phone || undefined,
           poster_file_url: value.poster_file_url && value.poster_file_url.length > 0 ? value.poster_file_url : undefined,
           zoom_webinar_id: value.zoom_webinar_id || undefined,
+          on24_key: value.on24_key || undefined,
+          on24_id: value.on24_id || undefined,
           expected_promotion_date: value.expected_promotion_date?.toISOString().split('T')[0] || undefined,
         }
         await onSubmit(submitData)
@@ -384,6 +390,9 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
           contact_email: values.contact_email || undefined,
           contact_phone: values.contact_phone || undefined,
           poster_file_url: Array.isArray(values.poster_file_url) ? values.poster_file_url : (values.poster_file_url ? [values.poster_file_url] : undefined),
+          zoom_webinar_id: values.zoom_webinar_id || undefined,
+          on24_key: values.on24_key || undefined,
+          on24_id: values.on24_id || undefined,
           expected_promotion_date: valuesForValidation.expected_promotion_date?.toISOString().split('T')[0] || undefined,
         }
 
@@ -782,6 +791,44 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
           </div>
         )}
       </form.Field>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <form.Field name="on24_key">
+          {(field) => (
+            <div className="space-y-2">
+              <Label htmlFor={field.name}>ON24 Key</Label>
+              <Input
+                id={field.name}
+                type="text"
+                value={field.state.value || ''}
+                onChange={(e) => field.handleChange(e.target.value)}
+                placeholder="e.g., 1234abcd"
+              />
+              <p className="text-sm text-muted-foreground">
+                Optional: For ON24 integration only.
+              </p>
+            </div>
+          )}
+        </form.Field>
+
+        <form.Field name="on24_id">
+          {(field) => (
+            <div className="space-y-2">
+              <Label htmlFor={field.name}>ON24 ID</Label>
+              <Input
+                id={field.name}
+                type="text"
+                value={field.state.value || ''}
+                onChange={(e) => field.handleChange(e.target.value)}
+                placeholder="e.g., 9876543"
+              />
+              <p className="text-sm text-muted-foreground">
+                Optional: For ON24 integration only.
+              </p>
+            </div>
+          )}
+        </form.Field>
+      </div>
 
       <form.Field name="expected_promotion_date">
         {(field) => (

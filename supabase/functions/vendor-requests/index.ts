@@ -240,6 +240,9 @@ serve(async (req) => {
             contact_email: body.contact_email || vendorDetails?.contact_email,
             contact_phone: body.contact_phone || vendorDetails?.contact_phone,
             poster_file_url: body.poster_file_url || null,
+            zoom_webinar_id: body.zoom_webinar_id || null,
+            on24_key: body.on24_key || null,
+            on24_id: body.on24_id || null,
             expected_promotion_date: body.expected_promotion_date || null,
             status: 'pending',
           })

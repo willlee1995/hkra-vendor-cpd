@@ -200,6 +200,18 @@ export function RequestDetail() {
                   <p className="text-sm">{request.zoom_webinar_id}</p>
                 </div>
               )}
+              {request.on24_key && (
+                <div>
+                  <p className="text-sm font-medium text-gray-500">ON24 Key</p>
+                  <p className="text-sm">{request.on24_key}</p>
+                </div>
+              )}
+              {request.on24_id && (
+                <div>
+                  <p className="text-sm font-medium text-gray-500">ON24 ID</p>
+                  <p className="text-sm">{request.on24_id}</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 
