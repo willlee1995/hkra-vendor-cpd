@@ -8,6 +8,9 @@ import { RequestDetail } from '@/pages/vendor/RequestDetail'
 import { Settings } from '@/pages/vendor/Settings'
 import { AdminDashboard } from '@/pages/admin/AdminDashboard'
 import { AdminRequestDetail } from '@/pages/admin/AdminRequestDetail'
+import { VendorGuide } from '@/pages/vendor/VendorGuide'
+import { AdminGuide } from '@/pages/admin/AdminGuide'
+import { AdminUserManagement } from '@/pages/admin/AdminUserManagement'
 import { AppShell } from '@/components/layout/AppShell'
 
 function App() {
@@ -66,6 +69,26 @@ function App() {
           }
         />
         <Route
+          path="/vendor/guide"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <VendorGuide />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/guide"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <AdminGuide />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/admin/dashboard"
           element={
             <ProtectedRoute>
@@ -81,6 +104,16 @@ function App() {
             <ProtectedRoute>
               <AppShell>
                 <AdminRequestDetail />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <AdminUserManagement />
               </AppShell>
             </ProtectedRoute>
           }

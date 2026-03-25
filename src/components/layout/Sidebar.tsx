@@ -1,5 +1,6 @@
-import { LayoutDashboard, FileText, Settings } from 'lucide-react'
+import { LayoutDashboard, FileText, Settings, BookOpen, Users } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
+import { useVendorAuth } from '@/hooks/useVendorAuth'
 
 interface SidebarItemProps {
     icon: React.ElementType
@@ -31,6 +32,7 @@ function SidebarItem({ icon: Icon, label, to, active }: SidebarItemProps) {
 export function Sidebar() {
     const location = useLocation()
     const path = location.pathname
+    const { isAdmin, isVendor } = useVendorAuth()
 
     return (
         <aside className="sticky top-0 hidden h-full w-60 flex-shrink-0 flex-col border-r border-neutral-border-subtle bg-neutral-background-card md:flex">
@@ -52,7 +54,24 @@ export function Sidebar() {
                     to="/vendor/request/new"
                     active={path === '/vendor/request/new'}
                 />
-                {/* Add more items as needed */}
+
+                {(isAdmin() || isVendor()) && (
+                    <SidebarItem
+                        icon={BookOpen}
+                        label="Quick Guide"
+                        to={isAdmin() ? '/admin/guide' : '/vendor/guide'}
+                        active={path === (isAdmin() ? '/admin/guide' : '/vendor/guide')}
+                    />
+                )}
+
+                {isAdmin() && (
+                    <SidebarItem
+                        icon={Users}
+                        label="Users"
+                        to="/admin/users"
+                        active={path === '/admin/users'}
+                    />
+                )}
             </nav>
             <div className="border-t border-neutral-border-subtle px-2 py-4">
                 <SidebarItem
