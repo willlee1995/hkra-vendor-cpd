@@ -110,7 +110,7 @@ function ReasonSelector({ value, onChange, reasons, placeholder, emptyText = "No
                                 <CommandItem
                                     key={reason}
                                     value={reason}
-                                    onSelect={(currentValue) => {
+                                    onSelect={(currentValue: string) => {
                                         onChange(currentValue)
                                         setOpen(false)
                                     }}
