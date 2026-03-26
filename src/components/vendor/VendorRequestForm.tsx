@@ -30,6 +30,14 @@ const dateToTime = (date: Date | undefined) => {
   return `${h}:${m}`
 }
 
+/** Format a Date as YYYY-MM-DD using local timezone (avoids UTC shift from toISOString) */
+const formatLocalDate = (date: Date): string => {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
 const requestSchema = z.object({
   event_name: z.string().min(1, 'Event name is required'),
   event_start_date: z.date({ message: 'Start date is required' }),
@@ -202,8 +210,8 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
 
         const submitData: CreateVendorRequestInput = {
           event_name: value.event_name,
-          event_start_date: value.event_start_date.toISOString().split('T')[0],
-          event_end_date: value.event_end_date.toISOString().split('T')[0],
+          event_start_date: formatLocalDate(value.event_start_date),
+          event_end_date: formatLocalDate(value.event_end_date),
           event_start_time: value.event_start_time,
           event_end_time: value.event_end_time,
           vendor_company_name: value.vendor_company_name || undefined,
@@ -214,7 +222,7 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
           zoom_webinar_id: value.zoom_webinar_id || undefined,
           on24_key: value.on24_key || undefined,
           on24_id: value.on24_id || undefined,
-          expected_promotion_date: value.expected_promotion_date?.toISOString().split('T')[0] || undefined,
+          expected_promotion_date: value.expected_promotion_date ? formatLocalDate(value.expected_promotion_date) : undefined,
         }
         await onSubmit(submitData)
       } catch (error: any) {
@@ -381,8 +389,8 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
       try {
         const submitData: CreateVendorRequestInput = {
           event_name: values.event_name,
-          event_start_date: valuesForValidation.event_start_date!.toISOString().split('T')[0],
-          event_end_date: valuesForValidation.event_end_date!.toISOString().split('T')[0],
+          event_start_date: formatLocalDate(valuesForValidation.event_start_date!),
+          event_end_date: formatLocalDate(valuesForValidation.event_end_date!),
           event_start_time: values.event_start_time,
           event_end_time: values.event_end_time,
           vendor_company_name: values.vendor_company_name || undefined,
@@ -393,7 +401,7 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
           zoom_webinar_id: values.zoom_webinar_id || undefined,
           on24_key: values.on24_key || undefined,
           on24_id: values.on24_id || undefined,
-          expected_promotion_date: valuesForValidation.expected_promotion_date?.toISOString().split('T')[0] || undefined,
+          expected_promotion_date: valuesForValidation.expected_promotion_date ? formatLocalDate(valuesForValidation.expected_promotion_date) : undefined,
         }
 
         console.log('Submitting form with data:', submitData)
