@@ -49,6 +49,22 @@ docker exec "${DOCKER_CONTAINER}" mkdir -p "${FUNCTIONS_PATH}" || {
     FUNCTIONS_PATH="/var/lib/docker/volumes/supabase_functions/_data"
 }
 
+# Shared Deno modules (vendor-requests, hkra-create-event)
+echo ""
+echo "📦 Deploying _shared modules..."
+docker cp supabase/functions/_shared "${DOCKER_CONTAINER}:${FUNCTIONS_PATH}/" || {
+    echo "❌ Failed to copy _shared"
+    exit 1
+}
+
+# Deploy hkra-create-event function
+echo ""
+echo "📦 Deploying hkra-create-event function..."
+docker cp supabase/functions/hkra-create-event "${DOCKER_CONTAINER}:${FUNCTIONS_PATH}/" || {
+    echo "❌ Failed to copy hkra-create-event"
+    exit 1
+}
+
 # Deploy vendor-requests function
 echo ""
 echo "📦 Deploying vendor-requests function..."
@@ -97,6 +113,7 @@ echo "   - vendor-requests: ${SUPABASE_URL}/functions/v1/vendor-requests"
 echo "   - vendor-upload: ${SUPABASE_URL}/functions/v1/vendor-upload"
 echo "   - vendor-upload-poster: ${SUPABASE_URL}/functions/v1/vendor-upload-poster"
 echo "   - vendor-info: ${SUPABASE_URL}/functions/v1/vendor-info"
+echo "   - hkra-create-event: ${SUPABASE_URL}/functions/v1/hkra-create-event"
 echo ""
 echo "💡 Check logs with: docker logs ${DOCKER_CONTAINER}"
 

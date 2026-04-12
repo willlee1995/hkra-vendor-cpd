@@ -78,6 +78,8 @@ interface VendorRequestFormProps {
   initialValues?: Partial<CreateVendorRequestInput & { event_start_date?: Date; event_end_date?: Date; expected_promotion_date?: Date; event_start_time?: string; event_end_time?: string }>
   onSubmit: (values: CreateVendorRequestInput | UpdateVendorRequestInput) => Promise<void>
   isLoading?: boolean
+  /** When set (e.g. admin creating for a vendor), poster uploads use this vendor's storage folder */
+  posterUploadVendorId?: string
 }
 
 // Helper function to safely extract error message
@@ -177,7 +179,7 @@ function getErrorMessage(errors: any[] | undefined, errorMap?: any): string | nu
   return null
 }
 
-export function VendorRequestForm({ initialValues, onSubmit, isLoading }: VendorRequestFormProps) {
+export function VendorRequestForm({ initialValues, onSubmit, isLoading, posterUploadVendorId }: VendorRequestFormProps) {
   const uploadPoster = useUploadPoster()
 
   const form = useForm({
@@ -275,7 +277,7 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
     }
 
     try {
-      const urls = await uploadPoster.mutateAsync(files)
+      const urls = await uploadPoster.mutateAsync({ files, vendorId: posterUploadVendorId })
       // Normalize URLs to fix any internal hostnames
       const normalizedUrls = urls.map(url => normalizeStorageUrl(url))
       // Merge with existing URLs

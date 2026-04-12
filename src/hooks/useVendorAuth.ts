@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
 import type { User } from '@supabase/supabase-js'
+import { getAuthRole, isAdminRole, isSuperAdminRole, isVendorRole } from '@/lib/authRole'
 
 export function useVendorAuth() {
   const [user, setUser] = useState<User | null>(null)
@@ -41,9 +42,8 @@ export function useVendorAuth() {
 
       if (error) throw error
 
-      // Check if user has vendor or admin role
-      const role = data.user?.user_metadata?.role
-      if (role !== 'vendor' && role !== 'admin' && role !== 'super-admin') {
+      const role = getAuthRole(data.user)
+      if (!role) {
         await supabase.auth.signOut()
         throw new Error('Access denied. Vendor or Admin account required.')
       }
@@ -68,15 +68,15 @@ export function useVendorAuth() {
   }
 
   const isVendor = () => {
-    return user?.user_metadata?.role === 'vendor'
+    return isVendorRole(getAuthRole(user))
   }
 
   const isAdmin = () => {
-    return user?.user_metadata?.role === 'admin' || user?.user_metadata?.role === 'super-admin'
+    return isAdminRole(getAuthRole(user))
   }
 
   const isSuperAdmin = () => {
-    return user?.user_metadata?.role === 'super-admin'
+    return isSuperAdminRole(getAuthRole(user))
   }
 
   const isAuthenticated = () => {

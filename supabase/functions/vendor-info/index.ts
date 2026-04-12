@@ -15,6 +15,20 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+function normalizeAuthRole(user: {
+  user_metadata?: { role?: unknown }
+  raw_user_meta_data?: { role?: unknown }
+  app_metadata?: { role?: unknown }
+}): 'vendor' | 'admin' | 'super-admin' | null {
+  const raw = user.user_metadata?.role ?? user.raw_user_meta_data?.role ?? user.app_metadata?.role
+  if (typeof raw !== 'string') return null
+  const compact = raw.trim().toLowerCase().replace(/[\s_-]/g, '')
+  if (compact === 'superadmin') return 'super-admin'
+  const n = raw.trim().toLowerCase().replace(/_/g, '-')
+  if (n === 'vendor' || n === 'admin' || n === 'super-admin') return n
+  return null
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -65,6 +79,34 @@ serve(async (req) => {
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
+    }
+
+    const url = new URL(req.url)
+    if (url.searchParams.get('list') === 'true') {
+      const authRole = normalizeAuthRole(user)
+      if (authRole !== 'admin' && authRole !== 'super-admin') {
+        return new Response(
+          JSON.stringify({ error: 'Forbidden: admin access required' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const { data: vendors, error: listError } = await supabaseClient
+        .from('vendors')
+        .select('id, user_id, company_name, contact_name, contact_email, contact_phone, created_at, updated_at')
+        .order('company_name', { ascending: true })
+
+      if (listError) {
+        console.error('Failed to list vendors:', listError)
+        return new Response(
+          JSON.stringify({ error: listError.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      return new Response(JSON.stringify(vendors ?? []), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
 
     // Get vendor info using service role client (bypasses RLS)

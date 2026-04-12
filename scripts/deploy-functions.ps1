@@ -46,6 +46,22 @@ if ($LASTEXITCODE -ne 0) {
     $FunctionsPath = "/var/lib/docker/volumes/supabase_functions/_data"
 }
 
+Write-Host ""
+Write-Host "📦 Deploying _shared modules..." -ForegroundColor Cyan
+docker cp supabase/functions/_shared "${DockerContainer}:${FunctionsPath}/"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Failed to copy _shared" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host ""
+Write-Host "📦 Deploying hkra-create-event function..." -ForegroundColor Cyan
+docker cp supabase/functions/hkra-create-event "${DockerContainer}:${FunctionsPath}/"
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "❌ Failed to copy hkra-create-event" -ForegroundColor Red
+    exit 1
+}
+
 # Deploy vendor-requests function
 Write-Host ""
 Write-Host "📦 Deploying vendor-requests function..." -ForegroundColor Cyan
@@ -99,6 +115,7 @@ Write-Host "   - vendor-requests: $SupabaseUrl/functions/v1/vendor-requests"
 Write-Host "   - vendor-upload: $SupabaseUrl/functions/v1/vendor-upload"
 Write-Host "   - vendor-upload-poster: $SupabaseUrl/functions/v1/vendor-upload-poster"
 Write-Host "   - vendor-info: $SupabaseUrl/functions/v1/vendor-info"
+Write-Host "   - hkra-create-event: $SupabaseUrl/functions/v1/hkra-create-event"
 Write-Host ""
 Write-Host "💡 Check logs with: docker logs $DockerContainer" -ForegroundColor Gray
 

@@ -26,9 +26,10 @@ async function getAuthHeaders() {
   }
 }
 
-export function useVendor() {
+export function useVendor(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['vendor'],
+    enabled: options?.enabled ?? true,
     queryFn: async (): Promise<Vendor | null> => {
       const headers = await getAuthHeaders()
 
@@ -45,6 +46,29 @@ export function useVendor() {
         }
         const error = await response.json()
         throw new Error(error.error || 'Failed to fetch vendor information')
+      }
+
+      return response.json()
+    },
+    retry: 1,
+    refetchOnWindowFocus: false,
+  })
+}
+
+export function useAdminVendorsList(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['vendors', 'admin-list'],
+    enabled: options?.enabled ?? false,
+    queryFn: async (): Promise<Vendor[]> => {
+      const headers = await getAuthHeaders()
+      const response = await fetch(`${EDGE_FUNCTION_URL}/vendor-info?list=true`, {
+        method: 'GET',
+        headers,
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to list vendors')
       }
 
       return response.json()

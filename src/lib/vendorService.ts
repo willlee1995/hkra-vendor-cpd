@@ -39,8 +39,15 @@ export const vendorService = {
   },
 
   // Upload poster files (supports multiple files)
-  uploadPoster: async (files: File[]): Promise<string[]> => {
-    return vendorApiClient.uploadPoster(files)
+  uploadPoster: async (files: File[], vendorId?: string): Promise<string[]> => {
+    return vendorApiClient.uploadPoster(files, vendorId)
+  },
+
+  createHkraEventFromRequest: async (
+    id: string,
+    options?: { force?: boolean },
+  ) => {
+    return vendorApiClient.createHkraEventFromRequest(id, options)
   },
 }
 

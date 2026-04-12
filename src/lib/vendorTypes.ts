@@ -34,6 +34,12 @@ export interface VendorRequest {
   rejection_reason?: string
   approved_by?: string
   approved_at?: string
+  /** WordPress post ID after HKRA site create-event sync */
+  hkra_wp_event_id?: number | null
+  hkra_event_permalink?: string | null
+  hkra_event_created_at?: string | null
+  /** Last HKRA WordPress sync error (cleared on success) */
+  hkra_event_sync_error?: string | null
   attendance_file_url?: string[] // Array of URLs for attendance files
   attendance_uploaded_at?: string
   created_at: string
@@ -51,6 +57,8 @@ export interface StatusHistory {
 }
 
 export interface CreateVendorRequestInput {
+  /** Required when an admin creates a request on behalf of a vendor */
+  vendor_id?: string
   event_name: string
   event_start_date: string
   event_end_date: string
@@ -90,5 +98,7 @@ export interface UpdateVendorRequestInput {
 
 export interface VendorRequestsFilter {
   status?: VendorRequestStatus
+  /** Admin only: restrict list to this vendor (e.g. latest submission for a new request template) */
+  vendor_id?: string
 }
 

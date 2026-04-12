@@ -24,6 +24,7 @@ import { Badge } from '@/components/ui/badge'
 import { UserPlus, Trash2, Shield, Building2, User } from 'lucide-react'
 import { UserForm } from '@/components/admin/UserForm'
 import { format } from 'date-fns'
+import { getAuthRole, isSuperAdminRole } from '@/lib/authRole'
 
 export function AdminUserManagement() {
     usePageTitle('User Management')
@@ -98,10 +99,8 @@ export function AdminUserManagement() {
                                 </TableHeader>
                                 <TableBody>
                                     {users?.map((user) => {
-                                        const role = user.user_metadata?.role || 'vendor'
-                                        // Should we hide super-admins from admins? Or maybe admins can see but not edit?
-                                        // Let's hide super-admins from non-super-admins just to be safe/clean
-                                        if (role === 'super-admin' && !isSuperAdmin()) return null
+                                        const role = getAuthRole(user) ?? 'vendor'
+                                        if (isSuperAdminRole(role) && !isSuperAdmin()) return null
 
                                         return (
                                             <TableRow key={user.id}>
