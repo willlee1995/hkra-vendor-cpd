@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
 import { BrandHeader } from '@/components/layout/BrandHeader'
+import { getAuthRole, isAdminRole } from '@/lib/authRole'
 
 export function VendorLoginForm() {
   const [email, setEmail] = useState('')
@@ -52,9 +53,8 @@ export function VendorLoginForm() {
       const result = await signIn(email, password)
       toast.success('Login successful')
 
-      // Redirect based on user role
-      const role = result?.user?.user_metadata?.role
-      if (role === 'admin') {
+      const role = getAuthRole(result?.user ?? null)
+      if (isAdminRole(role)) {
         navigate('/admin/dashboard')
       } else {
         navigate('/vendor/dashboard')

@@ -1,4 +1,5 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+
 import { supabase } from '@/lib/supabase'
 
 export interface Vendor {
@@ -27,9 +28,10 @@ async function getAuthHeaders() {
   }
 }
 
-export function useVendor() {
+export function useVendor(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['vendor'],
+    enabled: options?.enabled ?? true,
     queryFn: async (): Promise<Vendor | null> => {
       const headers = await getAuthHeaders()
 

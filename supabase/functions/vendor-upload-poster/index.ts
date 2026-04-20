@@ -38,6 +38,23 @@ function isAllowedPosterFile(file: File): boolean {
   )
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+function normalizeAuthRole(user: {
+  user_metadata?: { role?: unknown }
+  raw_user_meta_data?: { role?: unknown }
+  app_metadata?: { role?: unknown }
+}): 'vendor' | 'admin' | 'super-admin' | null {
+  const raw = user.user_metadata?.role ?? user.raw_user_meta_data?.role ?? user.app_metadata?.role
+  if (typeof raw !== 'string') return null
+  const compact = raw.trim().toLowerCase().replace(/[\s_-]/g, '')
+  if (compact === 'superadmin') return 'super-admin'
+  const n = raw.trim().toLowerCase().replace(/_/g, '-')
+  if (n === 'vendor' || n === 'admin' || n === 'super-admin') return n
+  return null
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
@@ -101,33 +118,64 @@ serve(async (req) => {
       )
     }
 
-    // Check if user is a vendor (using service role client to bypass RLS)
-    const { data: vendor, error: vendorError } = await supabaseClient
-      .from('vendors')
-      .select('id')
-      .eq('user_id', user.id)
-      .single()
-
-    if (vendorError || !vendor) {
-      console.error('Vendor lookup failed:', {
-        userId: user.id,
-        userEmail: user.email,
-        vendorError: vendorError,
-        vendorData: vendor,
-      })
-
-      return new Response(
-        JSON.stringify({
-          error: 'Vendor record not found',
-          details: vendorError?.message || 'No vendor record found for this user',
-          userId: user.id,
-        }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
+    const authRole = normalizeAuthRole(user)
+    const isAdmin = authRole === 'admin' || authRole === 'super-admin'
 
     // Parse form data - support multiple files
     const formData = await req.formData()
+
+    let vendor: { id: string }
+
+    if (isAdmin) {
+      const vidRaw = formData.get('vendor_id')
+      const vid = typeof vidRaw === 'string' ? vidRaw : ''
+      if (!UUID_RE.test(vid)) {
+        return new Response(
+          JSON.stringify({
+            error: 'vendor_id is required and must be a valid UUID when uploading as an admin',
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      const { data: vendorRow, error: adminVendorErr } = await supabaseClient
+        .from('vendors')
+        .select('id')
+        .eq('id', vid)
+        .single()
+
+      if (adminVendorErr || !vendorRow) {
+        return new Response(
+          JSON.stringify({ error: 'Vendor not found for the given vendor_id' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      vendor = vendorRow
+    } else {
+      const { data: vendorData, error: vendorError } = await supabaseClient
+        .from('vendors')
+        .select('id')
+        .eq('user_id', user.id)
+        .single()
+
+      if (vendorError || !vendorData) {
+        console.error('Vendor lookup failed:', {
+          userId: user.id,
+          userEmail: user.email,
+          vendorError: vendorError,
+          vendorData: vendorData,
+        })
+
+        return new Response(
+          JSON.stringify({
+            error: 'Vendor record not found',
+            details: vendorError?.message || 'No vendor record found for this user',
+            userId: user.id,
+          }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+      vendor = vendorData
+    }
     const files = formData.getAll('files') as File[]
 
     // Support single file for backward compatibility

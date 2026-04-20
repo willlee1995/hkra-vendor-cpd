@@ -12,6 +12,36 @@ The following environment variables must be set on your host server:
 - **RESEND_API_KEY**: (Optional) Resend API key for sending email notifications. If not set, emails will be skipped.
 - **FROM_EMAIL**: (Optional) Email address to send from (defaults to `noreply@hkra.org.hk`)
 
+### HKRA WordPress event sync (`hkra-create-event` + approval automation)
+
+Used to create Events Manager events on the HKRA website via `POST /wp-json/em-custom/v1/create-event` (see `event-api.md` in the repo root). Set these on the Supabase project (or container) for the Edge Functions runtime:
+
+| Variable | Required | Description |
+| -------- | -------- | ----------- |
+| `HKRA_WP_BASE_URL` | Yes (for sync) | WordPress site origin, e.g. `https://hkra.org.hk` (no trailing slash) |
+| `HKRA_WP_USER` | Yes | WordPress username for the integration account (must have `publish_events`) |
+| `HKRA_WP_APP_PASSWORD` | Yes | [Application Password](https://wordpress.org/documentation/article/application-passwords/) for that user |
+
+If any of the three are missing, approval and the admin “test” button **skip** WordPress calls (no error on approval).
+
+Optional tuning (defaults are safe for most HKRA CPD flows):
+
+| Variable | Default / notes |
+| -------- | ---------------- |
+| `HKRA_DEFAULT_TIMEZONE` | `Asia/Hong_Kong` |
+| `HKRA_DEFAULT_EVENT_RSVP` | `true` — enables RSVP + one ticket per `event-api.md` |
+| `HKRA_DEFAULT_TICKET_PRICE` | `50` |
+| `HKRA_DEFAULT_TICKET_SPACES` | `500` |
+| `HKRA_DEFAULT_TICKET_NAME` | `HKRA - Registration` |
+| `HKRA_DEFAULT_LOCATION_ID` | Omit or `0` for no location |
+| `HKRA_DEFAULT_BOOKING_FORM_ID` | Optional Pro booking form ID |
+| `HKRA_ALLOWED_ROLES_JSON` | e.g. `["subscriber","hkra_member"]` |
+| `HKRA_EVENT_CATEGORIES_JSON` | Array of term IDs or slugs (site-specific) |
+| `HKRA_EVENT_TAGS_JSON` | Same |
+| `HKRA_SUBSPECIALTIES_JSON` | Same |
+
+Use staging credentials and base URL until production is verified.
+
 ## Setting Environment Variables
 
 ### Option 1: Docker Environment Variables
@@ -127,6 +157,8 @@ After setting environment variables, deploy the functions:
 
 ```bash
 # Using Docker
+docker cp supabase/functions/_shared YOUR_CONTAINER:/home/deno/functions/
+docker cp supabase/functions/hkra-create-event YOUR_CONTAINER:/home/deno/functions/
 docker cp supabase/functions/vendor-requests YOUR_CONTAINER:/home/deno/functions/
 docker cp supabase/functions/vendor-upload YOUR_CONTAINER:/home/deno/functions/
 docker cp supabase/functions/vendor-info YOUR_CONTAINER:/home/deno/functions/
@@ -134,6 +166,10 @@ docker restart YOUR_CONTAINER
 
 # Or use the deployment script
 ./scripts/deploy-functions.sh
+
+# From another machine: pack + SSH/SCP to the VPS (no local Docker)
+# See docs/DEPLOY_EDGE_FUNCTIONS.md — Method 5
+./scripts/deploy-functions-vps.sh
 ```
 
 ## Email Notifications

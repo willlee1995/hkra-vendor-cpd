@@ -37,6 +37,20 @@ function normalizeNotificationEmailsInput(raw: unknown):
     return { ok: true, emails: out }
 }
 
+function normalizeAuthRole(user: {
+    user_metadata?: { role?: unknown }
+    raw_user_meta_data?: { role?: unknown }
+    app_metadata?: { role?: unknown }
+}): 'vendor' | 'admin' | 'super-admin' | null {
+    const raw = user.user_metadata?.role ?? user.raw_user_meta_data?.role ?? user.app_metadata?.role
+    if (typeof raw !== 'string') return null
+    const compact = raw.trim().toLowerCase().replace(/[\s_-]/g, '')
+    if (compact === 'superadmin') return 'super-admin'
+    const n = raw.trim().toLowerCase().replace(/_/g, '-')
+    if (n === 'vendor' || n === 'admin' || n === 'super-admin') return n
+    return null
+}
+
 serve(async (req) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
@@ -63,9 +77,9 @@ serve(async (req) => {
             )
         }
 
-        const userRole = user.user_metadata?.role || user.raw_user_meta_data?.role
-        const isSuperAdmin = userRole === 'super-admin'
-        const isAdmin = userRole === 'admin'
+        const authRole = normalizeAuthRole(user)
+        const isSuperAdmin = authRole === 'super-admin'
+        const isAdmin = authRole === 'admin'
 
         if (!isSuperAdmin && !isAdmin) {
             return new Response(
@@ -183,7 +197,7 @@ serve(async (req) => {
                 )
             }
 
-            const targetRole = targetUser.user_metadata?.role || targetUser.raw_user_meta_data?.role
+            const targetRole = normalizeAuthRole(targetUser)
 
             // Permission Logic for Delete
             if (!isSuperAdmin) {

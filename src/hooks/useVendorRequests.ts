@@ -7,10 +7,14 @@ import type {
 } from '@/lib/vendorTypes'
 import { toast } from 'sonner'
 
-export function useVendorRequests(filter?: VendorRequestsFilter) {
+export function useVendorRequests(
+  filter?: VendorRequestsFilter,
+  options?: { enabled?: boolean }
+) {
   return useQuery({
     queryKey: ['vendor-requests', filter],
     queryFn: () => vendorService.getRequests(filter),
+    enabled: options?.enabled !== false,
   })
 }
 
@@ -88,7 +92,8 @@ export function useUploadAttendance() {
 
 export function useUploadPoster() {
   return useMutation({
-    mutationFn: (files: File[]) => vendorService.uploadPoster(files),
+    mutationFn: ({ files, vendorId }: { files: File[]; vendorId?: string }) =>
+      vendorService.uploadPoster(files, vendorId),
     onError: (error: Error) => {
       toast.error(error.message || 'Failed to upload files')
     },

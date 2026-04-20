@@ -164,7 +164,54 @@ curl -X POST \
 rm ${FUNCTION_NAME}.tar.gz
 ```
 
-## Method 5: Using Deno Deploy (Alternative)
+## Method 5: Deploy from your laptop to the VPS (SSH / SCP)
+
+Use this when **Docker runs only on the VPS** and your project checkout is on another machine. The scripts pack `supabase/functions` (same bundles as `scripts/deploy-functions.sh`), upload with **SCP**, then run **`docker cp`** and **`docker restart`** over **SSH**.
+
+### Prerequisites
+
+- SSH key access to the VPS (`ssh deploy@your-vps` works without a password, or use an agent).
+- OpenSSH client (`ssh`) on your machine. On Windows: optional “OpenSSH Client” feature; **PowerShell** can use `scripts/deploy-functions-vps.ps1` (streams `tar` over SSH like the `.sh` script; avoids Windows `scp` option quirks).
+- `tar` on your machine (macOS/Linux: built-in; Windows 10+: `tar.exe`).
+
+### Linux / macOS / Git Bash / WSL
+
+```bash
+chmod +x scripts/deploy-functions-vps.sh
+
+export SSH_TARGET=deploy@203.0.113.10
+# Optional:
+# export SSH_KEY=$HOME/.ssh/id_ed25519
+# export REMOTE_EDGE_FUNCTIONS_DIR=/tmp/hkra-edge-functions
+# export DOCKER_CONTAINER=supabase_functions
+# export FUNCTIONS_PATH=/home/deno/functions
+
+./scripts/deploy-functions-vps.sh
+```
+
+### Windows (PowerShell)
+
+```powershell
+$env:SSH_TARGET = "deploy@203.0.113.10"
+# Optional: $env:SSH_KEY = "C:\Users\you\.ssh\id_ed25519"
+
+.\scripts\deploy-functions-vps.ps1
+```
+
+### What the scripts do
+
+1. Create a **gzip tarball** of the same function directories as `deploy-functions.sh` (`_shared`, `hkra-create-event`, `vendor-requests`, `vendor-upload`, `vendor-upload-poster`, `vendor-info`).
+2. **SSH**: recreate a staging directory on the server (default `/tmp/hkra-edge-functions`).
+3. **Pipe `tar` over SSH** to the server (bash and PowerShell); the PowerShell script does **not** use `scp` (OpenSSH on Windows often mis-parses multiple `-o` flags with `scp`).
+4. **SSH**: extract, `docker cp` each folder into `supabase_functions:/home/deno/functions/` (configurable), then `docker restart` the functions container.
+
+### Notes
+
+- **Secrets** (`SUPABASE_*`, `HKRA_WP_*`, etc.) are **not** deployed by these scripts; set them in your Compose/env on the VPS.
+- If your container name or functions path differs, set `DOCKER_CONTAINER` and `FUNCTIONS_PATH`.
+- `BatchMode=yes` requires non-interactive auth (key or agent). For password-only SSH, remove that option from the script or use `ssh-agent`.
+
+## Method 6: Using Deno Deploy (Alternative)
 
 If your self-hosted Supabase doesn't support Edge Functions natively, you can deploy to Deno Deploy and proxy requests:
 

@@ -30,6 +30,14 @@ const dateToTime = (date: Date | undefined) => {
   return `${h}:${m}`
 }
 
+/** Format a Date as YYYY-MM-DD using local timezone (avoids UTC shift from toISOString) */
+const formatLocalDate = (date: Date): string => {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
 const requestSchema = z.object({
   event_name: z.string().min(1, 'Event name is required'),
   event_start_date: z.date({ message: 'Start date is required' }),
@@ -58,6 +66,8 @@ const requestSchema = z.object({
     z.array(z.string().url()).min(1, 'At least one event-related material file is required')
   ),
   zoom_webinar_id: z.string().optional().or(z.literal('')),
+  on24_key: z.string().optional().or(z.literal('')),
+  on24_id: z.string().optional().or(z.literal('')),
   expected_promotion_date: z.date().optional(),
 }).refine((data) => data.event_end_date >= data.event_start_date, {
   message: 'End date must be after start date',
@@ -68,6 +78,8 @@ interface VendorRequestFormProps {
   initialValues?: Partial<CreateVendorRequestInput & { event_start_date?: Date; event_end_date?: Date; expected_promotion_date?: Date; event_start_time?: string; event_end_time?: string }>
   onSubmit: (values: CreateVendorRequestInput | UpdateVendorRequestInput) => Promise<void>
   isLoading?: boolean
+  /** When set (e.g. admin creating for a vendor), poster uploads use this vendor's storage folder */
+  posterUploadVendorId?: string
 }
 
 // Helper function to safely extract error message
@@ -167,7 +179,7 @@ function getErrorMessage(errors: any[] | undefined, errorMap?: any): string | nu
   return null
 }
 
-export function VendorRequestForm({ initialValues, onSubmit, isLoading }: VendorRequestFormProps) {
+export function VendorRequestForm({ initialValues, onSubmit, isLoading, posterUploadVendorId }: VendorRequestFormProps) {
   const uploadPoster = useUploadPoster()
 
   const form = useForm({
@@ -187,6 +199,8 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
           ? [initialValues.poster_file_url]
           : [],
       zoom_webinar_id: initialValues?.zoom_webinar_id || '',
+      on24_key: initialValues?.on24_key || '',
+      on24_id: initialValues?.on24_id || '',
       expected_promotion_date: initialValues?.expected_promotion_date || undefined,
     },
     onSubmit: async ({ value }) => {
@@ -198,8 +212,8 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
 
         const submitData: CreateVendorRequestInput = {
           event_name: value.event_name,
-          event_start_date: value.event_start_date.toISOString().split('T')[0],
-          event_end_date: value.event_end_date.toISOString().split('T')[0],
+          event_start_date: formatLocalDate(value.event_start_date),
+          event_end_date: formatLocalDate(value.event_end_date),
           event_start_time: value.event_start_time,
           event_end_time: value.event_end_time,
           vendor_company_name: value.vendor_company_name || undefined,
@@ -208,7 +222,9 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
           contact_phone: value.contact_phone || undefined,
           poster_file_url: value.poster_file_url && value.poster_file_url.length > 0 ? value.poster_file_url : undefined,
           zoom_webinar_id: value.zoom_webinar_id || undefined,
-          expected_promotion_date: value.expected_promotion_date?.toISOString().split('T')[0] || undefined,
+          on24_key: value.on24_key || undefined,
+          on24_id: value.on24_id || undefined,
+          expected_promotion_date: value.expected_promotion_date ? formatLocalDate(value.expected_promotion_date) : undefined,
         }
         await onSubmit(submitData)
       } catch (error: any) {
@@ -268,7 +284,7 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
     }
 
     try {
-      const urls = await uploadPoster.mutateAsync(files)
+      const urls = await uploadPoster.mutateAsync({ files, vendorId: posterUploadVendorId })
       // Normalize URLs to fix any internal hostnames
       const normalizedUrls = urls.map(url => normalizeStorageUrl(url))
       // Merge with existing URLs
@@ -382,8 +398,8 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
       try {
         const submitData: CreateVendorRequestInput = {
           event_name: values.event_name,
-          event_start_date: valuesForValidation.event_start_date!.toISOString().split('T')[0],
-          event_end_date: valuesForValidation.event_end_date!.toISOString().split('T')[0],
+          event_start_date: formatLocalDate(valuesForValidation.event_start_date!),
+          event_end_date: formatLocalDate(valuesForValidation.event_end_date!),
           event_start_time: values.event_start_time,
           event_end_time: values.event_end_time,
           vendor_company_name: values.vendor_company_name || undefined,
@@ -391,7 +407,10 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
           contact_email: values.contact_email || undefined,
           contact_phone: values.contact_phone || undefined,
           poster_file_url: Array.isArray(values.poster_file_url) ? values.poster_file_url : (values.poster_file_url ? [values.poster_file_url] : undefined),
-          expected_promotion_date: valuesForValidation.expected_promotion_date?.toISOString().split('T')[0] || undefined,
+          zoom_webinar_id: values.zoom_webinar_id || undefined,
+          on24_key: values.on24_key || undefined,
+          on24_id: values.on24_id || undefined,
+          expected_promotion_date: valuesForValidation.expected_promotion_date ? formatLocalDate(valuesForValidation.expected_promotion_date) : undefined,
         }
 
         console.log('Submitting form with data:', submitData)
@@ -789,6 +808,44 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
           </div>
         )}
       </form.Field>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <form.Field name="on24_key">
+          {(field) => (
+            <div className="space-y-2">
+              <Label htmlFor={field.name}>ON24 Key</Label>
+              <Input
+                id={field.name}
+                type="text"
+                value={field.state.value || ''}
+                onChange={(e) => field.handleChange(e.target.value)}
+                placeholder="e.g., 1234abcd"
+              />
+              <p className="text-sm text-muted-foreground">
+                Optional: For ON24 integration only.
+              </p>
+            </div>
+          )}
+        </form.Field>
+
+        <form.Field name="on24_id">
+          {(field) => (
+            <div className="space-y-2">
+              <Label htmlFor={field.name}>ON24 ID</Label>
+              <Input
+                id={field.name}
+                type="text"
+                value={field.state.value || ''}
+                onChange={(e) => field.handleChange(e.target.value)}
+                placeholder="e.g., 9876543"
+              />
+              <p className="text-sm text-muted-foreground">
+                Optional: For ON24 integration only.
+              </p>
+            </div>
+          )}
+        </form.Field>
+      </div>
 
       <form.Field name="expected_promotion_date">
         {(field) => (

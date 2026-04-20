@@ -28,6 +28,9 @@ export const vendorApiClient = {
     if (filter?.status) {
       params.append('status', filter.status)
     }
+    if (filter?.vendor_id) {
+      params.append('vendor_id', filter.vendor_id)
+    }
 
     const url = `${EDGE_FUNCTION_URL}/vendor-requests${params.toString() ? `?${params.toString()}` : ''}`
     const response = await fetch(url, {
@@ -72,11 +75,15 @@ export const vendorApiClient = {
       const error = await response.json()
       const errorMessage = error.error || 'Failed to create request'
 
-      // Provide helpful message for vendor record not found
-      if (errorMessage.includes('Vendor record not found') || response.status === 403) {
-        const errorData = error as any
+      if (
+        errorMessage.includes('Vendor record not found') ||
+        errorMessage.includes('Vendor record required')
+      ) {
+        const errorData = error as { userId?: string }
         const userId = errorData?.userId || 'unknown'
-        throw new Error(`Vendor account not set up. User ID: ${userId}. Please ensure the vendor record's user_id matches your authenticated user ID.`)
+        throw new Error(
+          `Vendor account not set up. User ID: ${userId}. Please ensure the vendor record's user_id matches your authenticated user ID.`
+        )
       }
 
       throw new Error(errorMessage)
@@ -161,7 +168,7 @@ export const vendorApiClient = {
   },
 
   // Upload poster files (supports multiple files)
-  async uploadPoster(files: File[]): Promise<string[]> {
+  async uploadPoster(files: File[], vendorId?: string): Promise<string[]> {
     const headers = await getAuthHeaders()
 
     // Create FormData for file upload
@@ -169,6 +176,9 @@ export const vendorApiClient = {
     files.forEach(file => {
       formData.append('files', file)
     })
+    if (vendorId) {
+      formData.append('vendor_id', vendorId)
+    }
 
     const response = await fetch(`${EDGE_FUNCTION_URL}/vendor-upload-poster`, {
       method: 'POST',
@@ -183,11 +193,15 @@ export const vendorApiClient = {
       const error = await response.json()
       const errorMessage = error.error || 'Failed to upload files'
 
-      // Provide helpful message for vendor record not found
-      if (errorMessage.includes('Vendor record not found') || response.status === 403) {
-        const errorData = error as any
+      if (
+        errorMessage.includes('Vendor record not found') ||
+        errorMessage.includes('Vendor record required')
+      ) {
+        const errorData = error as { userId?: string }
         const userId = errorData?.userId || 'unknown'
-        throw new Error(`Vendor account not set up. User ID: ${userId}. Please ensure the vendor record's user_id matches your authenticated user ID.`)
+        throw new Error(
+          `Vendor account not set up. User ID: ${userId}. Please ensure the vendor record's user_id matches your authenticated user ID.`
+        )
       }
 
       throw new Error(errorMessage)
@@ -201,6 +215,69 @@ export const vendorApiClient = {
       return [result.fileUrl]
     } else {
       throw new Error('Invalid response from server')
+    }
+  },
+
+  /**
+   * Create (or sync) HKRA website event via WordPress API for an approved vendor request.
+   * Admin only. Requires Edge Function `hkra-create-event` and HKRA_WP_* secrets.
+   */
+  async createHkraEventFromRequest(
+    requestId: string,
+    options?: { force?: boolean },
+  ): Promise<{
+    success: boolean
+    skipped?: boolean
+    reason?: string
+    message?: string
+    error?: string
+    wp_event_id?: number
+    link?: string
+    request?: VendorRequest
+  }> {
+    const headers = await getAuthHeaders()
+    const response = await fetch(`${EDGE_FUNCTION_URL}/hkra-create-event`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        request_id: requestId,
+        force: options?.force === true,
+      }),
+    })
+
+    const data = await response.json().catch(() => ({}))
+
+    if (response.status === 409) {
+      return {
+        success: false,
+        skipped: true,
+        reason: data.reason,
+        message: typeof data.message === 'string' ? data.message : undefined,
+        request: data.request,
+      }
+    }
+
+    if (response.status === 503) {
+      return {
+        success: false,
+        skipped: true,
+        reason: 'not_configured',
+        message: typeof data.message === 'string' ? data.message : 'HKRA WordPress not configured',
+        request: data.request,
+      }
+    }
+
+    if (!response.ok) {
+      const err = typeof data.error === 'string' ? data.error : 'Failed to create HKRA event'
+      throw new Error(err)
+    }
+
+    return data as {
+      success: boolean
+      skipped?: boolean
+      wp_event_id?: number
+      link?: string
+      request?: VendorRequest
     }
   },
 }

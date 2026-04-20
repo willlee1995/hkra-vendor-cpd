@@ -11,6 +11,7 @@ import {
   generateUnapprovalEmail,
   generateAdminApprovalNotificationEmail,
 } from './email.ts'
+import { syncHkraEventFromRequest } from '../_shared/hkraCreateEvent.ts'
 
 // Get Supabase credentials from environment variables
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
@@ -25,6 +26,23 @@ const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
+
+function normalizeAuthRole(user: {
+  user_metadata?: { role?: unknown }
+  raw_user_meta_data?: { role?: unknown }
+  app_metadata?: { role?: unknown }
+}): 'vendor' | 'admin' | 'super-admin' | null {
+  const raw = user.user_metadata?.role ?? user.raw_user_meta_data?.role ?? user.app_metadata?.role
+  if (typeof raw !== 'string') return null
+  const compact = raw.trim().toLowerCase().replace(/[\s_-]/g, '')
+  if (compact === 'superadmin') return 'super-admin'
+  const n = raw.trim().toLowerCase().replace(/_/g, '-')
+  if (n === 'vendor' || n === 'admin' || n === 'super-admin') return n
+  return null
+}
+
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -72,9 +90,8 @@ serve(async (req) => {
       )
     }
 
-    // Check if user is admin
-    const userRole = user.user_metadata?.role || user.raw_user_meta_data?.role
-    const isAdmin = userRole === 'admin' || userRole === 'super-admin'
+    const authRole = normalizeAuthRole(user)
+    const isAdmin = authRole === 'admin' || authRole === 'super-admin'
 
     // Check if user is a vendor (only needed for non-admin users)
     let vendor = null
@@ -151,15 +168,24 @@ serve(async (req) => {
           // List requests - all for admin, filtered for vendor
           const { searchParams } = url
           const status = searchParams.get('status')
+          const vendorIdParam = searchParams.get('vendor_id')
 
           let query = supabaseClient
             .from('vendor_requests')
             .select('*')
             .order('created_at', { ascending: false })
 
-          // If not admin, filter by vendor_id
+          // If not admin, filter by vendor_id (ignore vendor_id query param — cannot browse other vendors)
           if (!isAdmin && vendor) {
             query = query.eq('vendor_id', vendor.id)
+          } else if (isAdmin && vendorIdParam) {
+            if (!UUID_RE.test(vendorIdParam)) {
+              return new Response(
+                JSON.stringify({ error: 'Invalid vendor_id query parameter' }),
+                { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+              )
+            }
+            query = query.eq('vendor_id', vendorIdParam).limit(1)
           }
 
           if (status) {
@@ -178,24 +204,47 @@ serve(async (req) => {
           )
         }
 
-      case 'POST':
-        // Only vendors can create requests, not admins
-        if (isAdmin) {
-          return new Response(
-            JSON.stringify({ error: 'Admins cannot create requests' }),
-            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        }
-
-        if (!vendor) {
-          return new Response(
-            JSON.stringify({ error: 'Vendor record required to create requests' }),
-            { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          )
-        }
-
-        // Create new request
+      case 'POST': {
         const body = await req.json()
+
+        let postingVendorId: string
+        if (isAdmin) {
+          const vid = body.vendor_id
+          if (!vid || typeof vid !== 'string' || !UUID_RE.test(vid)) {
+            return new Response(
+              JSON.stringify({
+                error:
+                  'vendor_id is required and must be a valid UUID when creating a request as an admin',
+              }),
+              { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+          const { data: vendorRow, error: adminVendorErr } = await supabaseClient
+            .from('vendors')
+            .select('id')
+            .eq('id', vid)
+            .single()
+
+          if (adminVendorErr || !vendorRow) {
+            return new Response(
+              JSON.stringify({ error: 'Vendor not found for the given vendor_id' }),
+              { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+          postingVendorId = vendorRow.id
+        } else {
+          if (!vendor) {
+            return new Response(
+              JSON.stringify({
+                error: 'Vendor record not found',
+                details: 'No vendor record found for this user',
+                userId: user.id,
+              }),
+              { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+          }
+          postingVendorId = vendor.id
+        }
 
         // Validate required fields
         if (!body.event_name || !body.event_start_date || !body.event_end_date || !body.event_start_time || !body.event_end_time) {
@@ -231,13 +280,13 @@ serve(async (req) => {
         const { data: vendorDetails } = await supabaseClient
           .from('vendors')
           .select('company_name, contact_name, contact_email, contact_phone, notification_emails')
-          .eq('id', vendor.id)
+          .eq('id', postingVendorId)
           .single()
 
         const { data: newRequest, error: createError } = await supabaseClient
           .from('vendor_requests')
           .insert({
-            vendor_id: vendor.id,
+            vendor_id: postingVendorId,
             event_name: body.event_name,
             event_start_date: body.event_start_date,
             event_end_date: body.event_end_date,
@@ -250,6 +299,9 @@ serve(async (req) => {
             contact_email: body.contact_email || vendorDetails?.contact_email,
             contact_phone: body.contact_phone || vendorDetails?.contact_phone,
             poster_file_url: body.poster_file_url || null,
+            zoom_webinar_id: body.zoom_webinar_id || null,
+            on24_key: body.on24_key || null,
+            on24_id: body.on24_id || null,
             expected_promotion_date: body.expected_promotion_date || null,
             status: 'pending',
           })
@@ -299,8 +351,8 @@ serve(async (req) => {
             // Filter users with admin role
             const adminEmails = allUsers?.users
               ?.filter((user: any) => {
-                const role = user.user_metadata?.role || user.raw_user_meta_data?.role
-                return (role === 'admin' || role === 'super-admin') && user.email
+                const r = normalizeAuthRole(user)
+                return (r === 'admin' || r === 'super-admin') && user.email
               })
               .map((user: any) => user.email)
               .filter(Boolean) || []
@@ -344,6 +396,7 @@ serve(async (req) => {
           JSON.stringify(newRequest),
           { status: 201, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
+      }
 
       case 'PATCH':
         // Update request
@@ -583,8 +636,8 @@ serve(async (req) => {
               // Filter users with admin role, excluding the current approver
               const otherAdminEmails = allUsers?.users
                 ?.filter((u: any) => {
-                  const role = u.user_metadata?.role || u.raw_user_meta_data?.role
-                  return (role === 'admin' || role === 'super-admin') && u.email && u.id !== user.id
+                  const r = normalizeAuthRole(u)
+                  return (r === 'admin' || r === 'super-admin') && u.email && u.id !== user.id
                 })
                 .map((u: any) => u.email)
                 .filter(Boolean) || []
@@ -618,8 +671,26 @@ serve(async (req) => {
           }
         }
 
+        let responsePayload: Record<string, unknown> = updatedRequest as Record<string, unknown>
+
+        if (isAdmin && updateBody.status === 'approved' && existingRequest.status !== 'approved') {
+          try {
+            await syncHkraEventFromRequest(supabaseClient, requestId, { force: false })
+          } catch (hkraErr) {
+            console.error('HKRA WordPress event sync error:', hkraErr)
+          }
+          const { data: freshRequest } = await supabaseClient
+            .from('vendor_requests')
+            .select('*')
+            .eq('id', requestId)
+            .single()
+          if (freshRequest) {
+            responsePayload = freshRequest as Record<string, unknown>
+          }
+        }
+
         return new Response(
-          JSON.stringify(updatedRequest),
+          JSON.stringify(responsePayload),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
 

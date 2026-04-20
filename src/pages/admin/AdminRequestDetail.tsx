@@ -5,10 +5,11 @@ import { VendorStatusBadge } from '@/components/vendor/VendorStatusBadge'
 import { useVendorRequest } from '@/hooks/useVendorRequests'
 import { useVendorAuth } from '@/hooks/useVendorAuth'
 import { usePageTitle } from '@/hooks/usePageTitle'
-import { ArrowLeft, CheckCircle2, XCircle, Calendar, Mail, Phone, Building, Download, RotateCcw } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, XCircle, Calendar, Mail, Phone, Building, Download, RotateCcw, ExternalLink } from 'lucide-react'
 import { format } from 'date-fns'
 
 import { useState, useEffect } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
@@ -110,7 +111,7 @@ function ReasonSelector({ value, onChange, reasons, placeholder, emptyText = "No
                                 <CommandItem
                                     key={reason}
                                     value={reason}
-                                    onSelect={(currentValue) => {
+                                    onSelect={(currentValue: string) => {
                                         onChange(currentValue)
                                         setOpen(false)
                                     }}
@@ -199,9 +200,11 @@ const calculateDuration = (
 export function AdminRequestDetail() {
     const { id } = useParams<{ id: string }>()
     const navigate = useNavigate()
+    const queryClient = useQueryClient()
     const { data: request, isLoading } = useVendorRequest(id!)
     const { isAdmin } = useVendorAuth()
     const [isProcessing, setIsProcessing] = useState(false)
+    const [hkraSyncing, setHkraSyncing] = useState(false)
     const [adminNotes, setAdminNotes] = useState('')
     const [rejectionReason, setRejectionReason] = useState('')
     const [cpdPoints, setCpdPoints] = useState<string>('')
@@ -336,6 +339,53 @@ export function AdminRequestDetail() {
             toast.error(error.message || 'Failed to unreject and approve request')
         } finally {
             setIsProcessing(false)
+        }
+    }
+
+    const handleHkraCreateTest = async () => {
+        if (!id || !isAdmin()) return
+        setHkraSyncing(true)
+        try {
+            const result = await vendorApiClient.createHkraEventFromRequest(id, { force: false })
+            if (result.success === true && result.skipped !== true) {
+                toast.success('HKRA website event created')
+                queryClient.invalidateQueries({ queryKey: ['vendor-request', id] })
+                return
+            }
+            if (result.skipped && result.reason === 'already_exists') {
+                toast.error(result.message || 'Event already linked. Use “Force duplicate” to create another on the site.')
+                return
+            }
+            if (result.skipped && result.reason === 'not_configured') {
+                toast.error(result.message || 'HKRA WordPress credentials are not configured on the server.')
+            }
+        } catch (error: unknown) {
+            toast.error(error instanceof Error ? error.message : 'Failed to create HKRA event')
+        } finally {
+            setHkraSyncing(false)
+        }
+    }
+
+    const handleHkraForceCreate = async () => {
+        if (!id || !isAdmin()) return
+        if (!window.confirm('This creates a second event on the HKRA website. Continue?')) {
+            return
+        }
+        setHkraSyncing(true)
+        try {
+            const result = await vendorApiClient.createHkraEventFromRequest(id, { force: true })
+            if (result.success === true && result.skipped !== true) {
+                toast.success('HKRA website event created (duplicate)')
+                queryClient.invalidateQueries({ queryKey: ['vendor-request', id] })
+                return
+            }
+            if (result.skipped && result.reason === 'not_configured') {
+                toast.error(result.message || 'HKRA WordPress credentials are not configured on the server.')
+            }
+        } catch (error: unknown) {
+            toast.error(error instanceof Error ? error.message : 'Failed to create HKRA event')
+        } finally {
+            setHkraSyncing(false)
         }
     }
 
@@ -538,6 +588,30 @@ export function AdminRequestDetail() {
                         </Card>
                     )}
 
+                    {/* ON24 integration (vendor-submitted) */}
+                    {(request.on24_key || request.on24_id) && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>ON24</CardTitle>
+                                <CardDescription>ON24 integration identifiers from the vendor</CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {request.on24_key && (
+                                    <div>
+                                        <p className="text-sm font-medium text-muted-foreground">ON24 Key</p>
+                                        <p className="text-lg font-mono">{request.on24_key}</p>
+                                    </div>
+                                )}
+                                {request.on24_id && (
+                                    <div>
+                                        <p className="text-sm font-medium text-muted-foreground">ON24 ID</p>
+                                        <p className="text-lg font-mono">{request.on24_id}</p>
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+                    )}
+
                     <Card>
                         <CardHeader>
                             <CardTitle>Contact Information</CardTitle>
@@ -669,6 +743,84 @@ export function AdminRequestDetail() {
                                     <RotateCcw className="mr-2 h-4 w-4" />
                                     Unapprove Request
                                 </Button>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {request.status === 'approved' && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>HKRA website event</CardTitle>
+                                <CardDescription>
+                                    Publishes this CPD event to the HKRA site (Events Manager). Approving a request also runs this automatically when server credentials are set.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {request.hkra_event_sync_error && (
+                                    <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+                                        <p className="font-medium text-destructive">Last sync error</p>
+                                        <p className="text-destructive/90">{request.hkra_event_sync_error}</p>
+                                    </div>
+                                )}
+                                {request.hkra_event_permalink && (
+                                    <div>
+                                        <p className="text-sm font-medium text-muted-foreground">Public event page</p>
+                                        <a
+                                            href={request.hkra_event_permalink}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="mt-1 inline-flex items-center gap-1 break-all text-primary hover:underline"
+                                        >
+                                            <ExternalLink className="h-4 w-4 shrink-0" />
+                                            {request.hkra_event_permalink}
+                                        </a>
+                                        {request.hkra_wp_event_id != null && (
+                                            <p className="mt-2 text-xs text-muted-foreground">
+                                                WordPress post ID {request.hkra_wp_event_id}
+                                                {request.hkra_event_created_at && (
+                                                    <>
+                                                        {' '}
+                                                        · {format(new Date(request.hkra_event_created_at), 'PPp')}
+                                                    </>
+                                                )}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                                <div className="flex flex-wrap gap-2">
+                                    {!request.hkra_wp_event_id ? (
+                                        <Button
+                                            type="button"
+                                            variant="secondary"
+                                            disabled={hkraSyncing}
+                                            onClick={handleHkraCreateTest}
+                                        >
+                                            Create event on HKRA site (test)
+                                        </Button>
+                                    ) : (
+                                        <>
+                                            <Button
+                                                type="button"
+                                                variant="secondary"
+                                                disabled={hkraSyncing}
+                                                onClick={handleHkraCreateTest}
+                                            >
+                                                Retry sync (test)
+                                            </Button>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                disabled={hkraSyncing}
+                                                onClick={handleHkraForceCreate}
+                                            >
+                                                Force duplicate on HKRA site
+                                            </Button>
+                                        </>
+                                    )}
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    “Retry sync” fails if an event is already linked (use force to create a duplicate). Automated approval skips when a link already exists.
+                                </p>
                             </CardContent>
                         </Card>
                     )}
