@@ -61,5 +61,21 @@ export const manageUsersService = {
             const error = await response.json()
             throw new Error(error.error || 'Failed to delete user')
         }
-    }
+    },
+
+    async updateVendorNotificationEmails(userId: string, notification_emails: string[]): Promise<{ user_id: string; notification_emails: string[] }> {
+        const headers = await getAuthHeaders()
+        const response = await fetch(`${EDGE_FUNCTION_URL}/manage-users`, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify({ userId, notification_emails }),
+        })
+
+        if (!response.ok) {
+            const error = await response.json()
+            throw new Error(error.error || 'Failed to update notification emails')
+        }
+
+        return response.json()
+    },
 }

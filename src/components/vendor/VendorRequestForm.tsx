@@ -246,9 +246,16 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
 
     // Validate all files
     const invalidFiles: string[] = []
+    const isAllowedMaterial = (file: File) => {
+      const n = file.name.toLowerCase()
+      if (file.type.startsWith('image/')) return true
+      if (file.type === 'application/pdf') return true
+      if (n.endsWith('.pdf')) return true
+      return ['.jpg', '.jpeg', '.png', '.gif', '.webp'].some((ext) => n.endsWith(ext))
+    }
     files.forEach(file => {
-      if (!file.type.startsWith('image/')) {
-        invalidFiles.push(`${file.name}: Not an image file`)
+      if (!isAllowedMaterial(file)) {
+        invalidFiles.push(`${file.name}: Only image or PDF files are allowed`)
       }
       if (file.size > 50 * 1024 * 1024) {
         invalidFiles.push(`${file.name}: File size exceeds 50MB`)
@@ -716,7 +723,7 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
                 <Input
                   id="event-materials"
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.pdf,application/pdf"
                   multiple
                   onChange={handleFileUpload}
                   disabled={uploadPoster.isPending}
@@ -758,7 +765,7 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading }: Vendor
                 <p className="text-sm text-red-500">{posterUploadError}</p>
               )}
               <p className="text-sm text-muted-foreground">
-                Required: Upload at least one event-related material file such as posters, rundowns, etc. (max 50MB per file).
+                Required: Upload at least one event-related material file (images or PDF), e.g. posters or rundowns (max 50MB per file).
               </p>
             </div>
           )

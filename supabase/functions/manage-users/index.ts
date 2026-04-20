@@ -6,6 +6,37 @@ const corsHeaders = {
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const SIMPLE_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const MAX_NOTIFICATION_EMAILS = 25
+
+function normalizeNotificationEmailsInput(raw: unknown):
+    | { ok: true; emails: string[] }
+    | { ok: false; message: string } {
+    if (!Array.isArray(raw)) {
+        return { ok: false, message: 'notification_emails must be an array' }
+    }
+    if (raw.length > MAX_NOTIFICATION_EMAILS) {
+        return { ok: false, message: `At most ${MAX_NOTIFICATION_EMAILS} addresses` }
+    }
+    const out: string[] = []
+    const seen = new Set<string>()
+    for (const item of raw) {
+        if (typeof item !== 'string') {
+            return { ok: false, message: 'Each email must be a string' }
+        }
+        const t = item.trim()
+        if (!t) continue
+        const low = t.toLowerCase()
+        if (seen.has(low)) continue
+        if (!SIMPLE_EMAIL_RE.test(t)) {
+            return { ok: false, message: `Invalid email: ${t}` }
+        }
+        seen.add(low)
+        out.push(t)
+    }
+    return { ok: true, emails: out }
+}
+
 serve(async (req) => {
     if (req.method === 'OPTIONS') {
         return new Response('ok', { headers: corsHeaders })
@@ -56,13 +87,16 @@ serve(async (req) => {
             // For now, let's just return the auth users and maybe fetching vendor info for each is too heavy
             // Optimization: Fetch all vendors and map them
 
-            const { data: vendors } = await supabaseClient.from('vendors').select('user_id, company_name')
+            const { data: vendors } = await supabaseClient
+                .from('vendors')
+                .select('user_id, company_name, notification_emails')
 
             const enrichedUsers = users.map(u => {
                 const vendor = vendors?.find(v => v.user_id === u.id)
                 return {
                     ...u,
-                    vendor_company_name: vendor?.company_name
+                    vendor_company_name: vendor?.company_name,
+                    vendor_notification_emails: vendor?.notification_emails ?? [],
                 }
             })
 
@@ -167,6 +201,70 @@ serve(async (req) => {
 
             return new Response(
                 JSON.stringify({ success: true }),
+                { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            )
+        }
+
+        // PATCH: vendor notification_emails (admin / super-admin)
+        if (method === 'PATCH') {
+            const body = await req.json()
+            const userId = body.userId as string | undefined
+            const notification_emails = body.notification_emails
+
+            if (!userId) {
+                return new Response(
+                    JSON.stringify({ error: 'userId is required' }),
+                    { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                )
+            }
+
+            const parsed = normalizeNotificationEmailsInput(notification_emails)
+            if (!parsed.ok) {
+                return new Response(
+                    JSON.stringify({ error: parsed.message }),
+                    { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                )
+            }
+
+            const { data: { user: targetUser }, error: fetchTargetError } = await supabaseClient.auth.admin.getUserById(userId)
+            if (fetchTargetError || !targetUser) {
+                return new Response(
+                    JSON.stringify({ error: 'User not found' }),
+                    { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                )
+            }
+
+            const targetRole = targetUser.user_metadata?.role || targetUser.raw_user_meta_data?.role
+            if (targetRole !== 'vendor') {
+                return new Response(
+                    JSON.stringify({ error: 'Only vendor accounts have notification recipient lists' }),
+                    { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                )
+            }
+
+            const { data: updatedVendor, error: vendorUpdateError } = await supabaseClient
+                .from('vendors')
+                .update({
+                    notification_emails: parsed.emails,
+                    updated_at: new Date().toISOString(),
+                })
+                .eq('user_id', userId)
+                .select('user_id, notification_emails')
+                .maybeSingle()
+
+            if (vendorUpdateError) {
+                throw vendorUpdateError
+            }
+
+            if (!updatedVendor) {
+                return new Response(
+                    JSON.stringify({ error: 'Vendor record not found for this user' }),
+                    { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                )
+            }
+
+            return new Response(
+                JSON.stringify(updatedVendor),
                 { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             )
         }

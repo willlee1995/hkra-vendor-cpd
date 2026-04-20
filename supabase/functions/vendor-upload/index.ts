@@ -1,6 +1,12 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { sendEmail, generateAttendanceUploadConfirmationEmail, generateAttendanceUploadAdminNotificationEmail } from '../vendor-requests/email.ts'
+import {
+  sendEmail,
+  sendEmailToVendorRecipients,
+  collectVendorNotificationRecipients,
+  generateAttendanceUploadConfirmationEmail,
+  generateAttendanceUploadAdminNotificationEmail,
+} from '../vendor-requests/email.ts'
 
 // Get Supabase credentials from environment variables
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
@@ -74,7 +80,7 @@ serve(async (req) => {
     // Check if user is a vendor (using service role client to bypass RLS)
     const { data: vendor, error: vendorError } = await supabaseClient
       .from('vendors')
-      .select('id')
+      .select('id, notification_emails')
       .eq('user_id', user.id)
       .single()
 
@@ -257,12 +263,16 @@ serve(async (req) => {
 
     // Send email notifications (errors are caught so they don't break the upload)
     try {
-      // Send confirmation email to vendor
-      if (request.contact_email) {
-        await sendEmail({
-          to: request.contact_email,
-          subject: `Attendance File Uploaded - ${request.event_name}`,
-          html: generateAttendanceUploadConfirmationEmail({
+      // Send confirmation email to vendor (+ notification list)
+      const attendanceRecipients = collectVendorNotificationRecipients(
+        request.contact_email,
+        vendor.notification_emails,
+      )
+      if (attendanceRecipients.length > 0) {
+        await sendEmailToVendorRecipients(
+          attendanceRecipients,
+          `Attendance File Uploaded - ${request.event_name}`,
+          generateAttendanceUploadConfirmationEmail({
             event_name: request.event_name,
             event_start_date: request.event_start_date,
             event_end_date: request.event_end_date,
@@ -272,7 +282,7 @@ serve(async (req) => {
             request_id: request.id,
             uploaded_at: uploadedAt,
           }),
-        })
+        )
       }
 
       // Send notification email to all admin users

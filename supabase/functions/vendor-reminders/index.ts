@@ -1,6 +1,30 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { sendEmail, generate1MonthReminderEmail, generate3MonthReminderEmail } from './email.ts'
+import { sendEmailToVendorRecipients, collectVendorNotificationRecipients } from '../vendor-requests/email.ts'
+import { generate1MonthReminderEmail, generate3MonthReminderEmail } from './email.ts'
+
+async function fetchVendorNotificationMap(
+    supabaseClient: ReturnType<typeof createClient>,
+    vendorIds: string[],
+): Promise<Map<string, string[] | null | undefined>> {
+    const map = new Map<string, string[] | null | undefined>()
+    const unique = [...new Set(vendorIds)].filter(Boolean)
+    if (unique.length === 0) return map
+
+    const { data, error } = await supabaseClient
+        .from('vendors')
+        .select('id, notification_emails')
+        .in('id', unique)
+
+    if (error) {
+        console.error('fetchVendorNotificationMap:', error)
+        return map
+    }
+    for (const row of data ?? []) {
+        map.set(row.id, row.notification_emails)
+    }
+    return map
+}
 
 // Get Supabase credentials from environment variables
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
@@ -66,20 +90,29 @@ serve(async (req) => {
         } else if (requests1m && requests1m.length > 0) {
             console.log(`Found ${requests1m.length} candidates for 1-month reminder`)
 
+            const notifyMap1m = await fetchVendorNotificationMap(
+                supabaseClient,
+                requests1m.map((r: { vendor_id: string }) => r.vendor_id),
+            )
+
             for (const request of requests1m) {
-                if (!request.contact_email) continue
+                const recipients = collectVendorNotificationRecipients(
+                    request.contact_email,
+                    notifyMap1m.get(request.vendor_id),
+                )
+                if (recipients.length === 0) continue
 
                 try {
-                    await sendEmail({
-                        to: request.contact_email,
-                        subject: `Reminder: Attendance File Upload Pending - ${request.event_name}`,
-                        html: generate1MonthReminderEmail({
+                    await sendEmailToVendorRecipients(
+                        recipients,
+                        `Reminder: Attendance File Upload Pending - ${request.event_name}`,
+                        generate1MonthReminderEmail({
                             event_name: request.event_name,
                             event_end_date: request.event_end_date,
                             contact_name: request.contact_name,
                             request_id: request.id,
                         }),
-                    })
+                    )
 
                     // Update DB
                     const { error: updateError } = await supabaseClient
@@ -93,8 +126,8 @@ serve(async (req) => {
                         results.sent1MonthReminders++
                     }
                 } catch (emailError: any) {
-                    console.error(`Failed to send 1m reminder to ${request.contact_email}:`, emailError)
-                    results.errors.push(`Failed to send 1m reminder to ${request.contact_email}: ${emailError.message}`)
+                    console.error(`Failed to send 1m reminder for request ${request.id}:`, emailError)
+                    results.errors.push(`Failed to send 1m reminder for request ${request.id}: ${emailError.message}`)
                 }
             }
         }
@@ -115,20 +148,29 @@ serve(async (req) => {
         } else if (requests3m && requests3m.length > 0) {
             console.log(`Found ${requests3m.length} candidates for 3-month reminder`)
 
+            const notifyMap3m = await fetchVendorNotificationMap(
+                supabaseClient,
+                requests3m.map((r: { vendor_id: string }) => r.vendor_id),
+            )
+
             for (const request of requests3m) {
-                if (!request.contact_email) continue
+                const recipients = collectVendorNotificationRecipients(
+                    request.contact_email,
+                    notifyMap3m.get(request.vendor_id),
+                )
+                if (recipients.length === 0) continue
 
                 try {
-                    await sendEmail({
-                        to: request.contact_email,
-                        subject: `URGENT: Attendance File Upload Overdue - ${request.event_name}`,
-                        html: generate3MonthReminderEmail({
+                    await sendEmailToVendorRecipients(
+                        recipients,
+                        `URGENT: Attendance File Upload Overdue - ${request.event_name}`,
+                        generate3MonthReminderEmail({
                             event_name: request.event_name,
                             event_end_date: request.event_end_date,
                             contact_name: request.contact_name,
                             request_id: request.id,
                         }),
-                    })
+                    )
 
                     // Update DB
                     const { error: updateError } = await supabaseClient
@@ -142,8 +184,8 @@ serve(async (req) => {
                         results.sent3MonthReminders++
                     }
                 } catch (emailError: any) {
-                    console.error(`Failed to send 3m reminder to ${request.contact_email}:`, emailError)
-                    results.errors.push(`Failed to send 3m reminder to ${request.contact_email}: ${emailError.message}`)
+                    console.error(`Failed to send 3m reminder for request ${request.id}:`, emailError)
+                    results.errors.push(`Failed to send 3m reminder for request ${request.id}: ${emailError.message}`)
                 }
             }
         }

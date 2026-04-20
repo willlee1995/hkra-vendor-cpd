@@ -48,6 +48,59 @@ export async function sendEmail(options: EmailOptions): Promise<void> {
   }
 }
 
+const SIMPLE_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const MAX_VENDOR_NOTIFICATION_EMAILS = 25
+
+/**
+ * Merge request contact email with vendor-configured extra addresses (deduped, validated).
+ */
+export function collectVendorNotificationRecipients(
+  contactEmail: string | null | undefined,
+  notificationEmails: string[] | null | undefined,
+): string[] {
+  const raw: string[] = []
+  if (contactEmail && String(contactEmail).trim()) {
+    raw.push(String(contactEmail).trim())
+  }
+  if (Array.isArray(notificationEmails)) {
+    for (const e of notificationEmails) {
+      if (e && String(e).trim()) raw.push(String(e).trim())
+    }
+  }
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const addr of raw) {
+    if (out.length >= MAX_VENDOR_NOTIFICATION_EMAILS) break
+    const lower = addr.toLowerCase()
+    if (seen.has(lower)) continue
+    if (!SIMPLE_EMAIL_RE.test(addr)) {
+      console.warn('Skipping invalid notification email:', addr)
+      continue
+    }
+    seen.add(lower)
+    out.push(addr)
+  }
+  return out
+}
+
+/**
+ * Send the same vendor-facing email to each recipient (isolated failures).
+ */
+export async function sendEmailToVendorRecipients(
+  recipients: string[],
+  subject: string,
+  html: string,
+): Promise<void> {
+  if (recipients.length === 0) return
+  await Promise.allSettled(
+    recipients.map((to) =>
+      sendEmail({ to, subject, html }).catch((err) => {
+        console.error(`Failed to send email to ${to}:`, err)
+      })
+    ),
+  )
+}
+
 /**
  * Generate confirmation email HTML for requestor
  */

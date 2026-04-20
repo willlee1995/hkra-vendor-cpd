@@ -1,0 +1,17 @@
+---
+description: Remind to deploy Supabase Edge Functions to HKRA self-hosted instance after changes
+alwaysApply: true
+---
+
+# Supabase Edge Functions — deploy to self-hosted instance
+
+This project uses a **self-hosted Supabase** deployment. The project API / Studio base is:
+
+**https://supabase.hkra.org.hk**
+
+Whenever you add or change anything under `supabase/functions/`, **remind the user** that they must **deploy the affected edge functions** to that instance (not only commit code). Mention the URL above so they use the correct project.
+
+- After substantive edge-function work, include a short note in your final response: deploy using their usual workflow (e.g. Supabase CLI `functions deploy` pointed at this project, or their CI/CD pipeline), targeting **https://supabase.hkra.org.hk**.
+- Database migrations under `supabase/migrations/` still need to be applied on the same backend; call that out when schema changes are part of the same task.
+
+Do not assume local `supabase start` or cloud.supabase.com is the deployment target unless the user says so.

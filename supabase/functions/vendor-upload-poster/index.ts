@@ -16,7 +16,27 @@ const corsHeaders = {
 }
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024 // 50MB
-const ALLOWED_POSTER_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']
+const ALLOWED_POSTER_TYPES = [
+  'image/jpeg',
+  'image/jpg',
+  'image/png',
+  'image/gif',
+  'image/webp',
+  'application/pdf',
+]
+
+function isAllowedPosterFile(file: File): boolean {
+  const lower = file.name.toLowerCase()
+  if (ALLOWED_POSTER_TYPES.includes(file.type)) return true
+  if (lower.endsWith('.pdf')) return true
+  return (
+    lower.endsWith('.jpg') ||
+    lower.endsWith('.jpeg') ||
+    lower.endsWith('.png') ||
+    lower.endsWith('.gif') ||
+    lower.endsWith('.webp')
+  )
+}
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -131,8 +151,8 @@ serve(async (req) => {
 
     for (const file of files) {
       // Validate file type
-      if (!ALLOWED_POSTER_TYPES.includes(file.type)) {
-        errors.push(`${file.name}: Invalid file type. Only image files (JPEG, PNG, GIF, WebP) are allowed.`)
+      if (!isAllowedPosterFile(file)) {
+        errors.push(`${file.name}: Invalid file type. Only images (JPEG, PNG, GIF, WebP) or PDF are allowed.`)
         continue
       }
 

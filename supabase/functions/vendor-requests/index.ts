@@ -1,6 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
-import { sendEmail, generateRequestorConfirmationEmail, generateAdminNotificationEmail, generateApprovalEmail, generateRejectionEmail, generateUnapprovalEmail, generateAdminApprovalNotificationEmail } from './email.ts'
+import {
+  sendEmail,
+  sendEmailToVendorRecipients,
+  collectVendorNotificationRecipients,
+  generateRequestorConfirmationEmail,
+  generateAdminNotificationEmail,
+  generateApprovalEmail,
+  generateRejectionEmail,
+  generateUnapprovalEmail,
+  generateAdminApprovalNotificationEmail,
+} from './email.ts'
 
 // Get Supabase credentials from environment variables
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
@@ -220,7 +230,7 @@ serve(async (req) => {
         // Get vendor details for contact info
         const { data: vendorDetails } = await supabaseClient
           .from('vendors')
-          .select('company_name, contact_name, contact_email, contact_phone')
+          .select('company_name, contact_name, contact_email, contact_phone, notification_emails')
           .eq('id', vendor.id)
           .single()
 
@@ -251,13 +261,17 @@ serve(async (req) => {
         }
 
         // Send emails (errors are caught so they don't break request creation)
-        // Send confirmation email to requestor
-        if (newRequest.contact_email) {
+        // Send confirmation email to requestor + vendor notification list
+        const confirmationRecipients = collectVendorNotificationRecipients(
+          newRequest.contact_email,
+          vendorDetails?.notification_emails,
+        )
+        if (confirmationRecipients.length > 0) {
           try {
-            await sendEmail({
-              to: newRequest.contact_email,
-              subject: `CPD Request Received - ${newRequest.event_name}`,
-              html: generateRequestorConfirmationEmail({
+            await sendEmailToVendorRecipients(
+              confirmationRecipients,
+              `CPD Request Received - ${newRequest.event_name}`,
+              generateRequestorConfirmationEmail({
                 event_name: newRequest.event_name,
                 event_start_date: newRequest.event_start_date,
                 event_end_date: newRequest.event_end_date,
@@ -267,7 +281,7 @@ serve(async (req) => {
                 contact_name: newRequest.contact_name,
                 request_id: newRequest.id,
               }),
-            })
+            )
           } catch (error) {
             console.error('Failed to send confirmation email:', error)
             // Don't throw - email failures shouldn't break request creation
@@ -471,76 +485,89 @@ serve(async (req) => {
           }
         }
 
-        // Send email notification to requestor if status changed to approved, rejected, or unapproved
-        if (updateBody.status && existingRequest.status !== updateBody.status && updatedRequest.contact_email) {
-          try {
-            // Check specific transitions first (more specific conditions)
-            if (updateBody.status === 'approved' && existingRequest.status === 'rejected') {
-              // Unrejection: changing from rejected to approved
-              await sendEmail({
-                to: updatedRequest.contact_email,
-                subject: `CPD Request Approved - ${updatedRequest.event_name}`,
-                html: generateApprovalEmail({
-                  event_name: updatedRequest.event_name,
-                  event_start_date: updatedRequest.event_start_date,
-                  event_end_date: updatedRequest.event_end_date,
-                  event_start_time: updatedRequest.event_start_time || undefined,
-                  event_end_time: updatedRequest.event_end_time || undefined,
-                  expected_cpd_points: updatedRequest.expected_cpd_points ? parseFloat(String(updatedRequest.expected_cpd_points)) : null,
-                  contact_name: updatedRequest.contact_name,
-                  request_id: updatedRequest.id,
-                }),
-              })
-            } else if (updateBody.status === 'pending' && existingRequest.status === 'approved') {
-              // Unapproval: changing from approved back to pending
-              await sendEmail({
-                to: updatedRequest.contact_email,
-                subject: `CPD Request Status Update - ${updatedRequest.event_name}`,
-                html: generateUnapprovalEmail({
-                  event_name: updatedRequest.event_name,
-                  event_start_date: updatedRequest.event_start_date,
-                  event_end_date: updatedRequest.event_end_date,
-                  event_start_time: updatedRequest.event_start_time || undefined,
-                  event_end_time: updatedRequest.event_end_time || undefined,
-                  contact_name: updatedRequest.contact_name,
-                  request_id: updatedRequest.id,
-                }),
-              })
-            } else if (updateBody.status === 'approved') {
-              // General approval (from pending to approved)
-              await sendEmail({
-                to: updatedRequest.contact_email,
-                subject: `CPD Request Approved - ${updatedRequest.event_name}`,
-                html: generateApprovalEmail({
-                  event_name: updatedRequest.event_name,
-                  event_start_date: updatedRequest.event_start_date,
-                  event_end_date: updatedRequest.event_end_date,
-                  event_start_time: updatedRequest.event_start_time || undefined,
-                  event_end_time: updatedRequest.event_end_time || undefined,
-                  expected_cpd_points: updatedRequest.expected_cpd_points ? parseFloat(String(updatedRequest.expected_cpd_points)) : null,
-                  contact_name: updatedRequest.contact_name,
-                  request_id: updatedRequest.id,
-                }),
-              })
-            } else if (updateBody.status === 'rejected') {
-              await sendEmail({
-                to: updatedRequest.contact_email,
-                subject: `CPD Request Status Update - ${updatedRequest.event_name}`,
-                html: generateRejectionEmail({
-                  event_name: updatedRequest.event_name,
-                  event_start_date: updatedRequest.event_start_date,
-                  event_end_date: updatedRequest.event_end_date,
-                  event_start_time: updatedRequest.event_start_time || undefined,
-                  event_end_time: updatedRequest.event_end_time || undefined,
-                  contact_name: updatedRequest.contact_name,
-                  request_id: updatedRequest.id,
-                  rejection_reason: updateBody.rejection_reason || null,
-                }),
-              })
+        // Send email notification to requestor (+ vendor notification list) if status changed
+        if (updateBody.status && existingRequest.status !== updateBody.status) {
+          const { data: vendorNotify } = await supabaseClient
+            .from('vendors')
+            .select('notification_emails')
+            .eq('id', updatedRequest.vendor_id)
+            .single()
+
+          const statusRecipients = collectVendorNotificationRecipients(
+            updatedRequest.contact_email,
+            vendorNotify?.notification_emails,
+          )
+
+          if (statusRecipients.length > 0) {
+            try {
+              // Check specific transitions first (more specific conditions)
+              if (updateBody.status === 'approved' && existingRequest.status === 'rejected') {
+                // Unrejection: changing from rejected to approved
+                await sendEmailToVendorRecipients(
+                  statusRecipients,
+                  `CPD Request Approved - ${updatedRequest.event_name}`,
+                  generateApprovalEmail({
+                    event_name: updatedRequest.event_name,
+                    event_start_date: updatedRequest.event_start_date,
+                    event_end_date: updatedRequest.event_end_date,
+                    event_start_time: updatedRequest.event_start_time || undefined,
+                    event_end_time: updatedRequest.event_end_time || undefined,
+                    expected_cpd_points: updatedRequest.expected_cpd_points ? parseFloat(String(updatedRequest.expected_cpd_points)) : null,
+                    contact_name: updatedRequest.contact_name,
+                    request_id: updatedRequest.id,
+                  }),
+                )
+              } else if (updateBody.status === 'pending' && existingRequest.status === 'approved') {
+                // Unapproval: changing from approved back to pending
+                await sendEmailToVendorRecipients(
+                  statusRecipients,
+                  `CPD Request Status Update - ${updatedRequest.event_name}`,
+                  generateUnapprovalEmail({
+                    event_name: updatedRequest.event_name,
+                    event_start_date: updatedRequest.event_start_date,
+                    event_end_date: updatedRequest.event_end_date,
+                    event_start_time: updatedRequest.event_start_time || undefined,
+                    event_end_time: updatedRequest.event_end_time || undefined,
+                    contact_name: updatedRequest.contact_name,
+                    request_id: updatedRequest.id,
+                  }),
+                )
+              } else if (updateBody.status === 'approved') {
+                // General approval (from pending to approved)
+                await sendEmailToVendorRecipients(
+                  statusRecipients,
+                  `CPD Request Approved - ${updatedRequest.event_name}`,
+                  generateApprovalEmail({
+                    event_name: updatedRequest.event_name,
+                    event_start_date: updatedRequest.event_start_date,
+                    event_end_date: updatedRequest.event_end_date,
+                    event_start_time: updatedRequest.event_start_time || undefined,
+                    event_end_time: updatedRequest.event_end_time || undefined,
+                    expected_cpd_points: updatedRequest.expected_cpd_points ? parseFloat(String(updatedRequest.expected_cpd_points)) : null,
+                    contact_name: updatedRequest.contact_name,
+                    request_id: updatedRequest.id,
+                  }),
+                )
+              } else if (updateBody.status === 'rejected') {
+                await sendEmailToVendorRecipients(
+                  statusRecipients,
+                  `CPD Request Status Update - ${updatedRequest.event_name}`,
+                  generateRejectionEmail({
+                    event_name: updatedRequest.event_name,
+                    event_start_date: updatedRequest.event_start_date,
+                    event_end_date: updatedRequest.event_end_date,
+                    event_start_time: updatedRequest.event_start_time || undefined,
+                    event_end_time: updatedRequest.event_end_time || undefined,
+                    contact_name: updatedRequest.contact_name,
+                    request_id: updatedRequest.id,
+                    rejection_reason: updateBody.rejection_reason || null,
+                  }),
+                )
+              }
+            } catch (emailError) {
+              // Log error but don't fail the update
+              console.error('Failed to send status notification email:', emailError)
             }
-          } catch (emailError) {
-            // Log error but don't fail the update
-            console.error('Failed to send status notification email:', emailError)
           }
         }
 

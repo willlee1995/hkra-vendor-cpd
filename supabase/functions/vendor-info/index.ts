@@ -15,13 +15,48 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+const SIMPLE_EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const MAX_NOTIFICATION_EMAILS = 25
+
+function parseNotificationEmailsPayload(body: Record<string, unknown>):
+  | { ok: true; emails: string[] }
+  | { ok: false; message: string } {
+  if (!('notification_emails' in body)) {
+    return { ok: false, message: 'notification_emails is required' }
+  }
+  const raw = body.notification_emails
+  if (!Array.isArray(raw)) {
+    return { ok: false, message: 'notification_emails must be an array of strings' }
+  }
+  if (raw.length > MAX_NOTIFICATION_EMAILS) {
+    return { ok: false, message: `At most ${MAX_NOTIFICATION_EMAILS} additional addresses` }
+  }
+  const out: string[] = []
+  const seen = new Set<string>()
+  for (const item of raw) {
+    if (typeof item !== 'string') {
+      return { ok: false, message: 'Each notification email must be a string' }
+    }
+    const trimmed = item.trim()
+    if (!trimmed) continue
+    const lower = trimmed.toLowerCase()
+    if (seen.has(lower)) continue
+    if (!SIMPLE_EMAIL_RE.test(trimmed)) {
+      return { ok: false, message: `Invalid email address: ${trimmed}` }
+    }
+    seen.add(lower)
+    out.push(trimmed)
+  }
+  return { ok: true, emails: out }
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
-  if (req.method !== 'GET') {
+  if (req.method !== 'GET' && req.method !== 'PATCH') {
     return new Response(
       JSON.stringify({ error: 'Method not allowed' }),
       { status: 405, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -67,10 +102,60 @@ serve(async (req) => {
       )
     }
 
-    // Get vendor info using service role client (bypasses RLS)
+    if (req.method === 'PATCH') {
+      let jsonBody: Record<string, unknown>
+      try {
+        jsonBody = await req.json() as Record<string, unknown>
+      } catch {
+        return new Response(
+          JSON.stringify({ error: 'Invalid JSON body' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const parsed = parseNotificationEmailsPayload(jsonBody)
+      if (!parsed.ok) {
+        return new Response(
+          JSON.stringify({ error: parsed.message }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      const { data: updatedVendor, error: updateError } = await supabaseClient
+        .from('vendors')
+        .update({
+          notification_emails: parsed.emails,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('user_id', user.id)
+        .select('id, user_id, company_name, contact_name, contact_email, contact_phone, notification_emails, created_at, updated_at')
+        .maybeSingle()
+
+      if (updateError) {
+        console.error('Vendor notification_emails update failed:', updateError)
+        return new Response(
+          JSON.stringify({ error: updateError.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      if (!updatedVendor) {
+        return new Response(
+          JSON.stringify({ error: 'Vendor record not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      return new Response(
+        JSON.stringify(updatedVendor),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    // GET — vendor profile
     const { data: vendor, error: vendorError } = await supabaseClient
       .from('vendors')
-      .select('id, user_id, company_name, contact_name, contact_email, contact_phone, created_at, updated_at')
+      .select('id, user_id, company_name, contact_name, contact_email, contact_phone, notification_emails, created_at, updated_at')
       .eq('user_id', user.id)
       .maybeSingle()
 

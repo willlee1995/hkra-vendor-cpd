@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 
 export interface Vendor {
@@ -8,6 +8,7 @@ export interface Vendor {
   contact_name: string
   contact_email: string
   contact_phone: string | null
+  notification_emails: string[]
   created_at: string
   updated_at: string
 }
@@ -47,10 +48,43 @@ export function useVendor() {
         throw new Error(error.error || 'Failed to fetch vendor information')
       }
 
-      return response.json()
+      const data = await response.json()
+      return {
+        ...data,
+        notification_emails: Array.isArray(data.notification_emails) ? data.notification_emails : [],
+      } as Vendor
     },
     retry: 1,
     refetchOnWindowFocus: false,
+  })
+}
+
+export function useUpdateVendorNotificationEmails() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (notification_emails: string[]): Promise<Vendor> => {
+      const headers = await getAuthHeaders()
+      const response = await fetch(`${EDGE_FUNCTION_URL}/vendor-info`, {
+        method: 'PATCH',
+        headers,
+        body: JSON.stringify({ notification_emails }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update notification recipients')
+      }
+
+      const data = await response.json()
+      return {
+        ...data,
+        notification_emails: Array.isArray(data.notification_emails) ? data.notification_emails : [],
+      } as Vendor
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['vendor'] })
+    },
   })
 }
 

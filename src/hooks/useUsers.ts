@@ -39,3 +39,19 @@ export function useDeleteUser() {
         },
     })
 }
+
+export function useUpdateVendorNotificationEmailsAdmin() {
+    const queryClient = useQueryClient()
+
+    return useMutation({
+        mutationFn: ({ userId, notification_emails }: { userId: string; notification_emails: string[] }) =>
+            manageUsersService.updateVendorNotificationEmails(userId, notification_emails),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['users'] })
+            toast.success('Notification recipients updated')
+        },
+        onError: (error: Error) => {
+            toast.error(error.message || 'Failed to update notification recipients')
+        },
+    })
+}
