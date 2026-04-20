@@ -219,8 +219,15 @@ serve(async (req) => {
             )
         }
 
-        // PATCH: vendor notification_emails (admin / super-admin)
+        // PATCH: vendor notification_emails (super-admin only)
         if (method === 'PATCH') {
+            if (!isSuperAdmin) {
+                return new Response(
+                    JSON.stringify({ error: 'Forbidden: Only Super Admins can edit vendor notification lists' }),
+                    { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                )
+            }
+
             const body = await req.json()
             const userId = body.userId as string | undefined
             const notification_emails = body.notification_emails

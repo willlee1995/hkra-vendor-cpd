@@ -90,3 +90,29 @@ export function useUpdateVendorNotificationEmails() {
   })
 }
 
+export function useAdminVendorsList(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: ['vendors', 'admin-list'],
+    enabled: options?.enabled ?? false,
+    queryFn: async (): Promise<Vendor[]> => {
+      const headers = await getAuthHeaders()
+      const response = await fetch(`${EDGE_FUNCTION_URL}/vendor-info?list=true`, {
+        method: 'GET',
+        headers,
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to list vendors')
+      }
+
+      const rows = (await response.json()) as Vendor[]
+      return rows.map((v) => ({
+        ...v,
+        notification_emails: Array.isArray(v.notification_emails) ? v.notification_emails : [],
+      }))
+    },
+    retry: 1,
+    refetchOnWindowFocus: false,
+  })
+}

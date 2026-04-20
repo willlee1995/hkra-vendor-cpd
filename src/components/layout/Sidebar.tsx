@@ -1,4 +1,4 @@
-import { LayoutDashboard, FileText, Settings, BookOpen, Users } from 'lucide-react'
+import { LayoutDashboard, FileText, Settings, BookOpen, Users, Mail } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 import { useVendorAuth } from '@/hooks/useVendorAuth'
 
@@ -37,8 +37,9 @@ export interface SidebarNavContentProps {
 export function SidebarNavContent({ onNavigate }: SidebarNavContentProps) {
   const location = useLocation()
   const path = location.pathname
-  const { isAdmin, isVendor } = useVendorAuth()
+  const { isAdmin, isVendor, isSuperAdmin } = useVendorAuth()
   const admin = isAdmin()
+  const superAdmin = isSuperAdmin()
   const dashboardPath = admin ? '/admin/dashboard' : '/vendor/dashboard'
   const dashboardActive = admin
     ? path === '/admin/dashboard' || path.startsWith('/admin/request/')
@@ -78,6 +79,16 @@ export function SidebarNavContent({ onNavigate }: SidebarNavContentProps) {
             label="Users"
             to="/admin/users"
             active={path === '/admin/users'}
+            onNavigate={onNavigate}
+          />
+        )}
+
+        {superAdmin && (
+          <SidebarItem
+            icon={Mail}
+            label="Vendor notifications"
+            to="/admin/vendor-notifications"
+            active={path === '/admin/vendor-notifications'}
             onNavigate={onNavigate}
           />
         )}

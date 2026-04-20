@@ -11,6 +11,7 @@ import { AdminRequestDetail } from '@/pages/admin/AdminRequestDetail'
 import { VendorGuide } from '@/pages/vendor/VendorGuide'
 import { AdminGuide } from '@/pages/admin/AdminGuide'
 import { AdminUserManagement } from '@/pages/admin/AdminUserManagement'
+import { AdminVendorNotifications } from '@/pages/admin/AdminVendorNotifications'
 import { AppShell } from '@/components/layout/AppShell'
 
 function App() {
@@ -114,6 +115,16 @@ function App() {
             <ProtectedRoute>
               <AppShell>
                 <AdminUserManagement />
+              </AppShell>
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/vendor-notifications"
+          element={
+            <ProtectedRoute>
+              <AppShell>
+                <AdminVendorNotifications />
               </AppShell>
             </ProtectedRoute>
           }

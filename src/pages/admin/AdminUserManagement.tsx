@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react'
-import { useUsers, useDeleteUser, useUpdateVendorNotificationEmailsAdmin } from '@/hooks/useUsers'
+import { useState } from 'react'
+import { useUsers, useDeleteUser } from '@/hooks/useUsers'
 import type { User } from '@/lib/userTypes'
 import { useVendorAuth } from '@/hooks/useVendorAuth'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -25,28 +25,16 @@ import { Badge } from '@/components/ui/badge'
 import { UserPlus, Trash2, Shield, Building2, User as UserIcon, Mail } from 'lucide-react'
 import { UserForm } from '@/components/admin/UserForm'
 import { format } from 'date-fns'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
 import { getAuthRole, isSuperAdminRole } from '@/lib/authRole'
+import { VendorNotificationEmailsDialog } from '@/components/admin/VendorNotificationEmailsDialog'
 
 export function AdminUserManagement() {
     usePageTitle('User Management')
-    const { data: users, isLoading } = useUsers()
+    const { data: users, isLoading, refetch: refetchUsers } = useUsers()
     const { isSuperAdmin, isAdmin } = useVendorAuth()
     const deleteUser = useDeleteUser()
-    const updateVendorNotifications = useUpdateVendorNotificationEmailsAdmin()
     const [isaddDialogOpen, setIsAddDialogOpen] = useState(false)
     const [notifyDialogUser, setNotifyDialogUser] = useState<User | null>(null)
-    const [notifyText, setNotifyText] = useState('')
-
-    useEffect(() => {
-        if (!notifyDialogUser) {
-            setNotifyText('')
-            return
-        }
-        const list = notifyDialogUser.vendor_notification_emails
-        setNotifyText(Array.isArray(list) && list.length > 0 ? list.join('\n') : '')
-    }, [notifyDialogUser])
 
     if (!isAdmin()) {
         return <div>Access Denied</div>
@@ -133,7 +121,7 @@ export function AdminUserManagement() {
                                                 <TableCell>{format(new Date(user.created_at), 'MMM d, yyyy')}</TableCell>
                                                 <TableCell className="text-right">
                                                     <div className="flex justify-end gap-1">
-                                                        {role === 'vendor' && (
+                                                        {role === 'vendor' && isSuperAdmin() && (
                                                             <Button
                                                                 variant="ghost"
                                                                 size="sm"
@@ -168,49 +156,14 @@ export function AdminUserManagement() {
                     </CardContent>
                 </Card>
 
-                <Dialog open={!!notifyDialogUser} onOpenChange={(open) => { if (!open) setNotifyDialogUser(null) }}>
-                    <DialogContent className="sm:max-w-[500px]">
-                        <DialogHeader>
-                            <DialogTitle>Vendor notification recipients</DialogTitle>
-                            <DialogDescription>
-                                Additional addresses that receive CPD emails for {notifyDialogUser?.email}. One per line or comma-separated (max 25).
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="space-y-2">
-                            <Label htmlFor="admin-vendor-notify">Email addresses</Label>
-                            <Textarea
-                                id="admin-vendor-notify"
-                                value={notifyText}
-                                onChange={(e) => setNotifyText(e.target.value)}
-                                rows={5}
-                                className="font-mono text-sm"
-                            />
-                        </div>
-                        <div className="flex justify-end gap-2 pt-2">
-                            <Button type="button" variant="outline" onClick={() => setNotifyDialogUser(null)}>
-                                Cancel
-                            </Button>
-                            <Button
-                                type="button"
-                                disabled={!notifyDialogUser || updateVendorNotifications.isPending}
-                                onClick={async () => {
-                                    if (!notifyDialogUser) return
-                                    const parts = notifyText
-                                        .split(/[\n,]+/)
-                                        .map((s) => s.trim())
-                                        .filter(Boolean)
-                                    await updateVendorNotifications.mutateAsync({
-                                        userId: notifyDialogUser.id,
-                                        notification_emails: parts,
-                                    })
-                                    setNotifyDialogUser(null)
-                                }}
-                            >
-                                {updateVendorNotifications.isPending ? 'Saving…' : 'Save'}
-                            </Button>
-                        </div>
-                    </DialogContent>
-                </Dialog>
+                <VendorNotificationEmailsDialog
+                    user={notifyDialogUser}
+                    open={!!notifyDialogUser}
+                    onOpenChange={(open) => {
+                        if (!open) setNotifyDialogUser(null)
+                    }}
+                    onSaved={() => refetchUsers()}
+                />
             </main>
         </div>
     )
