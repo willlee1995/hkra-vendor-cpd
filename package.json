@@ -4,14 +4,16 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "eslint .",
-    "preview": "vite preview",
-    "deploy:pages": "npm run build && wrangler pages deploy dist",
-    "deploy:worker": "bun run build && wrangler deploy",
-    "cf:login": "wrangler login",
-    "cf:dev": "wrangler pages dev dist"
+    "dev": "bun run vite",
+    "build": "bun run tsc -b && bun run vite build",
+    "lint": "bun run eslint .",
+    "preview": "bun run vite preview",
+    "deploy:pages": "bun run build && bunx wrangler pages deploy dist",
+    "deploy:worker": "bun run build && bunx wrangler deploy",
+    "deploy:campaign-worker": "bunx wrangler deploy -c wrangler.campaign.toml",
+    "dev:campaign-worker": "bunx wrangler dev -c wrangler.campaign.toml",
+    "cf:login": "bunx wrangler login",
+    "cf:dev": "bunx wrangler pages dev dist"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -56,6 +58,7 @@
     "typescript": "~5.9.3",
     "typescript-eslint": "^8.46.3",
     "vite": "^7.2.2",
-    "wrangler": "^3.0.0"
+    "wrangler": "^3.0.0",
+    "@types/bun": "latest"
   }
 }

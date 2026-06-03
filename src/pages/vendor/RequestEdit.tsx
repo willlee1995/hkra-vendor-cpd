@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { VendorRequestForm } from '@/components/vendor/VendorRequestForm'
 import { useVendorRequest, useUpdateVendorRequest } from '@/hooks/useVendorRequests'
+import { useVendor } from '@/hooks/useVendor'
 import { ArrowLeft } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
@@ -11,6 +12,7 @@ export function RequestEdit() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { data: request, isLoading } = useVendorRequest(id!)
+  const { data: vendor } = useVendor()
   const updateRequest = useUpdateVendorRequest()
 
   const handleSubmit = async (values: any) => {
@@ -85,6 +87,8 @@ export function RequestEdit() {
         ? [request.poster_file_url]
         : [],
     zoom_webinar_id: request.zoom_webinar_id,
+    zoom_template_webinar_id: request.zoom_template_webinar_id ?? undefined,
+    zoom_template_kind: request.zoom_template_kind ?? undefined,
     on24_key: request.on24_key,
     on24_id: request.on24_id,
     expected_promotion_date: request.expected_promotion_date ? new Date(request.expected_promotion_date + 'T00:00:00') : undefined,
@@ -129,6 +133,7 @@ export function RequestEdit() {
               initialValues={initialValues as any}
               onSubmit={handleSubmit}
               isLoading={updateRequest.isPending}
+              hideManualZoomField={Boolean(vendor?.zoom_webinar_auto_create)}
             />
           </CardContent>
         </Card>

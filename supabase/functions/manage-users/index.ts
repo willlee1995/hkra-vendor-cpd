@@ -103,7 +103,7 @@ serve(async (req) => {
 
             const { data: vendors } = await supabaseClient
                 .from('vendors')
-                .select('user_id, company_name, notification_emails')
+                .select('user_id, company_name, notification_emails, zoom_webinar_auto_create')
 
             const enrichedUsers = users.map(u => {
                 const vendor = vendors?.find(v => v.user_id === u.id)
@@ -111,6 +111,7 @@ serve(async (req) => {
                     ...u,
                     vendor_company_name: vendor?.company_name,
                     vendor_notification_emails: vendor?.notification_emails ?? [],
+                    zoom_webinar_auto_create: vendor?.zoom_webinar_auto_create ?? false,
                 }
             })
 
@@ -123,7 +124,7 @@ serve(async (req) => {
         // POST: Create user
         if (method === 'POST') {
             const body = await req.json()
-            const { email, password, role, company_name, contact_name, phone } = body
+            const { email, password, role, company_name, contact_name, phone, zoom_webinar_auto_create } = body
 
             // Permission Logic
             if (role === 'admin' && !isSuperAdmin) {
@@ -160,6 +161,7 @@ serve(async (req) => {
                         contact_name: contact_name,
                         contact_email: email,
                         contact_phone: phone,
+                        zoom_webinar_auto_create: Boolean(zoom_webinar_auto_create),
                         updated_at: new Date().toISOString()
                     }, { onConflict: 'user_id' })
 
@@ -219,73 +221,149 @@ serve(async (req) => {
             )
         }
 
-        // PATCH: vendor notification_emails (super-admin only)
+        // PATCH: Zoom auto-create flag or vendor notification_emails
         if (method === 'PATCH') {
-            if (!isSuperAdmin) {
-                return new Response(
-                    JSON.stringify({ error: 'Forbidden: Only Super Admins can edit vendor notification lists' }),
-                    { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-                )
-            }
-
             const body = await req.json()
-            const userId = body.userId as string | undefined
-            const notification_emails = body.notification_emails
 
-            if (!userId) {
+            if ('notification_emails' in body) {
+                if (!isSuperAdmin) {
+                    return new Response(
+                        JSON.stringify({ error: 'Forbidden: Only Super Admins can edit vendor notification lists' }),
+                        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                    )
+                }
+
+                const userId = body.userId as string | undefined
+                const notification_emails = body.notification_emails
+
+                if (!userId) {
+                    return new Response(
+                        JSON.stringify({ error: 'userId is required' }),
+                        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                    )
+                }
+
+                const parsed = normalizeNotificationEmailsInput(notification_emails)
+                if (!parsed.ok) {
+                    return new Response(
+                        JSON.stringify({ error: parsed.message }),
+                        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                    )
+                }
+
+                const { data: { user: targetUser }, error: fetchTargetError } = await supabaseClient.auth.admin.getUserById(userId)
+                if (fetchTargetError || !targetUser) {
+                    return new Response(
+                        JSON.stringify({ error: 'User not found' }),
+                        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                    )
+                }
+
+                const targetRole = normalizeAuthRole(targetUser)
+                if (targetRole !== 'vendor') {
+                    return new Response(
+                        JSON.stringify({ error: 'Only vendor accounts have notification recipient lists' }),
+                        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                    )
+                }
+
+                const { data: updatedVendor, error: vendorUpdateError } = await supabaseClient
+                    .from('vendors')
+                    .update({
+                        notification_emails: parsed.emails,
+                        updated_at: new Date().toISOString(),
+                    })
+                    .eq('user_id', userId)
+                    .select('user_id, notification_emails')
+                    .maybeSingle()
+
+                if (vendorUpdateError) {
+                    throw vendorUpdateError
+                }
+
+                if (!updatedVendor) {
+                    return new Response(
+                        JSON.stringify({ error: 'Vendor record not found for this user' }),
+                        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                    )
+                }
+
                 return new Response(
-                    JSON.stringify({ error: 'userId is required' }),
+                    JSON.stringify(updatedVendor),
+                    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                )
+            }
+
+            const { user_id, zoom_webinar_auto_create } = body
+
+            if (!user_id || typeof user_id !== 'string') {
+                return new Response(
+                    JSON.stringify({ error: 'user_id is required' }),
                     { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
                 )
             }
 
-            const parsed = normalizeNotificationEmailsInput(notification_emails)
-            if (!parsed.ok) {
-                return new Response(
-                    JSON.stringify({ error: parsed.message }),
-                    { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-                )
-            }
-
-            const { data: { user: targetUser }, error: fetchTargetError } = await supabaseClient.auth.admin.getUserById(userId)
-            if (fetchTargetError || !targetUser) {
-                return new Response(
-                    JSON.stringify({ error: 'User not found' }),
-                    { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-                )
-            }
-
-            const targetRole = targetUser.user_metadata?.role || targetUser.raw_user_meta_data?.role
-            if (targetRole !== 'vendor') {
-                return new Response(
-                    JSON.stringify({ error: 'Only vendor accounts have notification recipient lists' }),
-                    { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-                )
-            }
-
-            const { data: updatedVendor, error: vendorUpdateError } = await supabaseClient
+            const { data: vendor, error: vendorUpdateError } = await supabaseClient
                 .from('vendors')
                 .update({
-                    notification_emails: parsed.emails,
+                    zoom_webinar_auto_create: Boolean(zoom_webinar_auto_create),
                     updated_at: new Date().toISOString(),
                 })
-                .eq('user_id', userId)
-                .select('user_id, notification_emails')
+                .eq('user_id', user_id)
+                .select('id, user_id, company_name, zoom_webinar_auto_create')
                 .maybeSingle()
 
             if (vendorUpdateError) {
-                throw vendorUpdateError
+                return new Response(
+                    JSON.stringify({ error: vendorUpdateError.message }),
+                    { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                )
             }
 
-            if (!updatedVendor) {
+            if (!vendor) {
+                const { data: { user: targetUser }, error: targetError } =
+                    await supabaseClient.auth.admin.getUserById(user_id)
+                if (targetError || !targetUser) {
+                    return new Response(
+                        JSON.stringify({ error: 'User not found' }),
+                        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                    )
+                }
+                if (normalizeAuthRole(targetUser) !== 'vendor') {
+                    return new Response(
+                        JSON.stringify({ error: 'Vendor record not found for user' }),
+                        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                    )
+                }
+                const meta = targetUser.user_metadata ?? {}
+                const email = targetUser.email ?? ''
+                const { data: created, error: insertError } = await supabaseClient
+                    .from('vendors')
+                    .insert({
+                        user_id,
+                        company_name: String(meta.company_name ?? meta.vendor_company_name ?? email.split('@')[0] ?? 'Vendor'),
+                        contact_name: String(meta.contact_name ?? meta.full_name ?? 'Contact'),
+                        contact_email: email,
+                        contact_phone: meta.phone ? String(meta.phone) : null,
+                        zoom_webinar_auto_create: Boolean(zoom_webinar_auto_create),
+                        updated_at: new Date().toISOString(),
+                    })
+                    .select('id, user_id, company_name, zoom_webinar_auto_create')
+                    .single()
+                if (insertError) {
+                    return new Response(
+                        JSON.stringify({ error: insertError.message }),
+                        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                    )
+                }
                 return new Response(
-                    JSON.stringify({ error: 'Vendor record not found for this user' }),
-                    { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+                    JSON.stringify(created),
+                    { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
                 )
             }
 
             return new Response(
-                JSON.stringify(updatedVendor),
+                JSON.stringify(vendor),
                 { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
             )
         }

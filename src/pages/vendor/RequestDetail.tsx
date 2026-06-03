@@ -194,10 +194,27 @@ export function RequestDetail() {
                   </div>
                 </div>
               )}
-              {request.zoom_webinar_id && (
-                <div>
-                  <p className="text-sm font-medium text-gray-500">Zoom Webinar ID</p>
-                  <p className="text-sm">{request.zoom_webinar_id}</p>
+              {(request.zoom_webinar_id || request.zoom_join_url) && (
+                <div className="space-y-2">
+                  {request.zoom_webinar_id && (
+                    <div>
+                      <p className="text-sm font-medium text-gray-500">Zoom Webinar ID</p>
+                      <p className="text-sm font-mono">{request.zoom_webinar_id}</p>
+                    </div>
+                  )}
+                  {request.status === 'approved' && request.zoom_join_url && (
+                    <div>
+                      <p className="text-sm font-medium text-gray-500">Zoom join link</p>
+                      <a
+                        href={request.zoom_join_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-blue-600 hover:underline break-all"
+                      >
+                        {request.zoom_join_url}
+                      </a>
+                    </div>
+                  )}
                 </div>
               )}
               {request.on24_key && (

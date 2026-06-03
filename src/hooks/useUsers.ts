@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { manageUsersService } from '@/lib/manageUsersService'
-import type { CreateUserInput } from '@/lib/userTypes'
+import type { CreateUserInput, UpdateVendorFlagsInput } from '@/lib/userTypes'
 import { toast } from 'sonner'
 
 export function useUsers() {
@@ -21,6 +21,21 @@ export function useCreateUser() {
         },
         onError: (error: Error) => {
             toast.error(error.message || 'Failed to create user')
+        },
+    })
+}
+
+export function useUpdateVendorFlags() {
+    const queryClient = useQueryClient()
+
+    return useMutation({
+        mutationFn: (input: UpdateVendorFlagsInput) => manageUsersService.updateVendorFlags(input),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['users'] })
+            toast.success('Vendor Zoom settings updated')
+        },
+        onError: (error: Error) => {
+            toast.error(error.message || 'Failed to update vendor settings')
         },
     })
 }

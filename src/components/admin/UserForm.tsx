@@ -28,6 +28,7 @@ const formSchema = z.object({
     company_name: z.string().optional(),
     contact_name: z.string().optional(),
     phone: z.string().optional(),
+    zoom_webinar_auto_create: z.boolean().optional(),
 }).refine((data) => {
     if (data.role === 'vendor') {
         return !!data.company_name && !!data.contact_name
@@ -54,6 +55,7 @@ export function UserForm({ onSuccess }: UserFormProps) {
             company_name: '',
             contact_name: '',
             phone: '',
+            zoom_webinar_auto_create: false,
         },
     })
 
@@ -187,6 +189,29 @@ export function UserForm({ onSuccess }: UserFormProps) {
                                         <Input placeholder="+1 234 567 890" {...field} />
                                     </FormControl>
                                     <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+
+                        <FormField
+                            control={form.control}
+                            name="zoom_webinar_auto_create"
+                            render={({ field }) => (
+                                <FormItem className="flex flex-row items-start gap-3 rounded-md border p-3">
+                                    <FormControl>
+                                        <input
+                                            type="checkbox"
+                                            className="mt-1 h-4 w-4"
+                                            checked={Boolean(field.value)}
+                                            onChange={(e) => field.onChange(e.target.checked)}
+                                        />
+                                    </FormControl>
+                                    <div className="space-y-1 leading-none">
+                                        <FormLabel>Auto-create Zoom webinar on approval</FormLabel>
+                                        <p className="text-sm text-muted-foreground">
+                                            Creates a Zoom webinar via API when requests are approved, then syncs the ID to the HKRA site for member registration.
+                                        </p>
+                                    </div>
                                 </FormItem>
                             )}
                         />

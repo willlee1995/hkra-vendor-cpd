@@ -77,7 +77,7 @@ JSON body parameters are read via `$request->get_param()`, so top-level JSON key
 | Parameter | Type   | Default   | Description                                  |
 | --------- | ------ | --------- | -------------------------------------------- |
 | `content` | string | —         | HTML allowed; passed through `wp_kses_post`. |
-| `status`  | string | `publish` | Post status (e.g. `publish`, `draft`).       |
+| `status`  | string | `draft` | Post status (e.g. `draft`, `publish`, `pending`, `private`). Vendor portal integration also sends `draft` explicitly; publish on hkra.org.hk when ready. |
 
 ### Schedule and timezone
 
@@ -119,15 +119,19 @@ If `event_rsvp` is **not** truthy, the event is created **without** RSVP/booking
 
 Applied only after a successful `EM_Event::save()`.
 
-| Parameter          | Type    | Description                                                                                                                                                       |
-| ------------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `booking_form_id`  | integer | If set, saved as post meta `_custom_booking_form` (custom booking form ID in Events Manager Pro).                                                                 |
-| `cpd`              | string  | If Advanced Custom Fields is active, updates the site’s CPD field on the event post. Integrators only need to send the value; field configuration is server-side. |
+| Parameter          | Type             | Default (RSVP on) | Description                                                                                                                                                       |
+| ------------------ | ---------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `booking_form_id`  | integer          | form named **Empty** | Saved as post meta `_custom_booking_form`. If omitted, the API looks up the Events Manager Pro booking form named `Empty`. Override with an explicit ID.        |
+| `attendee_form`    | string / integer | `none`            | Saved as post meta `_custom_attendee_form`. Use `none` for no attendee fields, or a numeric form ID from Events Manager Pro.                                      |
+| `cpd`              | string           | —                 | If Advanced Custom Fields is active, updates the site’s CPD field on the event post. Integrators only need to send the value; field configuration is server-side. |
 | `event_categories` | array   | Assigned to taxonomy `event-categories` (non-empty only).                                                                                                         |
 | `event_tags`       | array   | Assigned to taxonomy `event-tags` (non-empty only).                                                                                                               |
 | `subspecialties`   | array   | Assigned to taxonomy `subspecialties` (non-empty only).                                                                                                           |
+| `zoom_webinar_id`  | string  | When `event_rsvp` creates the ticket, saved to **Events Manager Pro ticket/product meta** (`zoom_webinar_id`) so approved HKRA site bookings can auto-register attendees in Zoom. Omit or empty = no Zoom bridge. |
 
 Taxonomy values are passed to `wp_set_object_terms()` as provided (typically **term IDs** or **slugs** per WordPress behaviour—confirm with your administrator).
+
+**Zoom registrant bridge:** The WordPress `create-event` handler must persist `zoom_webinar_id` on the ticket product when RSVP is enabled. A separate booking hook on hkra.org.hk calls the Zoom Add Registrant API when a member completes registration (booking status approved). Vendor portal sends this field via the HKRA integration (`hkra-create-event` / approval automation).
 
 ---
 
@@ -173,7 +177,7 @@ curl -sS -X POST "https://YOUR-DOMAIN/wp-json/em-custom/v1/create-event" \
   -d '{
     "title": "Example CPD Webinar",
     "content": "<p>Event description HTML.</p>",
-    "status": "publish",
+    "status": "draft",
     "event_timezone": "Asia/Hong_Kong",
     "event_start_date": "2026-06-01",
     "event_end_date": "2026-06-01",
@@ -186,7 +190,7 @@ curl -sS -X POST "https://YOUR-DOMAIN/wp-json/em-custom/v1/create-event" \
     "ticket_spaces": 200,
     "ticket_name": "Standard registration",
     "allowed_roles": ["subscriber", "hkra_member"],
-    "booking_form_id": 5,
+    "attendee_form": "none",
     "cpd": "2.5",
     "event_categories": [12, 34],
     "event_tags": ["webinar"],

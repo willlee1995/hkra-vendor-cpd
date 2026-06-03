@@ -29,18 +29,54 @@ Optional tuning (defaults are safe for most HKRA CPD flows):
 | Variable | Default / notes |
 | -------- | ---------------- |
 | `HKRA_DEFAULT_TIMEZONE` | `Asia/Hong_Kong` |
+| `HKRA_DEFAULT_EVENT_STATUS` | `draft` — WordPress post status for new events (`draft`, `publish`, `pending`, `private`). Publish on hkra.org.hk when the event is ready to go live. |
 | `HKRA_DEFAULT_EVENT_RSVP` | `true` — enables RSVP + one ticket per `event-api.md` |
 | `HKRA_DEFAULT_TICKET_PRICE` | `50` |
 | `HKRA_DEFAULT_TICKET_SPACES` | `500` |
 | `HKRA_DEFAULT_TICKET_NAME` | `HKRA - Registration` |
 | `HKRA_DEFAULT_LOCATION_ID` | Omit or `0` for no location |
-| `HKRA_DEFAULT_BOOKING_FORM_ID` | Optional Pro booking form ID |
+| `HKRA_DEFAULT_BOOKING_FORM_ID` | Optional — overrides name lookup; if unset, WordPress API uses booking form named **Empty** |
+| `HKRA_DEFAULT_ATTENDEE_FORM` | `none` — attendee form meta (`none` or numeric form ID) |
 | `HKRA_ALLOWED_ROLES_JSON` | e.g. `["subscriber","hkra_member"]` |
 | `HKRA_EVENT_CATEGORIES_JSON` | Array of term IDs or slugs (site-specific) |
 | `HKRA_EVENT_TAGS_JSON` | Same |
 | `HKRA_SUBSPECIALTIES_JSON` | Same |
 
 Use staging credentials and base URL until production is verified.
+
+### FluentCRM email campaigns (`campaign-proxy` + approval hook)
+
+| Variable | Required | Description |
+| -------- | -------- | ----------- |
+| `CAMPAIGN_WORKER_URL` | Yes (for campaigns) | Cloudflare Worker URL (`hkra-campaign-orchestrator`) |
+| `CAMPAIGN_WEBHOOK_SECRET` | Yes | Shared HMAC secret (header `X-Campaign-Webhook-Secret`) |
+| `HKRA_PUBLISH_TOKEN` | On Worker | FluentCRM plugin token on hkra.org.hk (Worker secret, not Edge Function) |
+
+On CPD **approve**, `vendor-requests` calls the Worker to start Cursor cloud generation. Admins can also **manually start** from the **Email campaign** card (`POST …/campaign-proxy/{id}/start`). Schedule step uses `campaign-proxy` → `approve-schedule` with `confirm: true`.
+
+See [docs/CAMPAIGN_ORCHESTRATOR.md](../../docs/CAMPAIGN_ORCHESTRATOR.md).
+
+### Zoom webinar auto-create (`zoom-create-webinar` + approval automation)
+
+For vendors with `zoom_webinar_auto_create`, approval calls Zoom then HKRA WordPress sync. Set on the Edge Functions runtime:
+
+| Variable | Required | Description |
+| -------- | -------- | ----------- |
+| `ZOOM_ACCOUNT_ID` | Yes (for Zoom) | Zoom Server-to-Server OAuth account ID |
+| `ZOOM_CLIENT_ID` | Yes | OAuth client ID |
+| `ZOOM_CLIENT_SECRET` | Yes | OAuth client secret |
+| `ZOOM_HOST_USER_ID` | No | Licensed host user id or email (default `me`) |
+| `ZOOM_DEFAULT_TIMEZONE` | No | Default `Asia/Hong_Kong` |
+
+If Zoom credentials are missing, approval still succeeds; `zoom_sync_error` is stored for admin retry.
+
+WordPress must accept `zoom_webinar_id` on `create-event` and store it on EM Pro ticket product meta for the registration → Zoom registrant bridge (see `event-api.md`).
+
+| `zoom-list-webinars` | GET — list templates + recent/past webinars for vendor template picker (Zoom-eligible vendors) |
+
+Ensure the Zoom OAuth app includes scopes for `webinar:read`, `webinar:write`, and report listing if past webinars should appear.
+
+See [docs/ZOOM_WEBINAR_INTEGRATION.md](../../docs/ZOOM_WEBINAR_INTEGRATION.md).
 
 ## Setting Environment Variables
 
@@ -159,6 +195,8 @@ After setting environment variables, deploy the functions:
 # Using Docker
 docker cp supabase/functions/_shared YOUR_CONTAINER:/home/deno/functions/
 docker cp supabase/functions/hkra-create-event YOUR_CONTAINER:/home/deno/functions/
+docker cp supabase/functions/zoom-create-webinar YOUR_CONTAINER:/home/deno/functions/
+docker cp supabase/functions/zoom-list-webinars YOUR_CONTAINER:/home/deno/functions/
 docker cp supabase/functions/vendor-requests YOUR_CONTAINER:/home/deno/functions/
 docker cp supabase/functions/vendor-upload YOUR_CONTAINER:/home/deno/functions/
 docker cp supabase/functions/vendor-info YOUR_CONTAINER:/home/deno/functions/

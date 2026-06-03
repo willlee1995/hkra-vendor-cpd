@@ -14,6 +14,15 @@ import { toast } from 'sonner'
 import { normalizeStorageUrl } from '@/lib/storageUtils'
 import type { CreateVendorRequestInput, UpdateVendorRequestInput } from '@/lib/vendorTypes'
 import { TimePicker } from '@/components/ui/datetime-picker'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { useZoomWebinarTemplates } from '@/hooks/useZoomWebinarTemplates'
+import { decodeZoomTemplateValue, encodeZoomTemplateValue } from '@/lib/zoomTypes'
 
 const timeToDate = (timeStr: string) => {
   if (!timeStr) return undefined
@@ -66,6 +75,7 @@ const requestSchema = z.object({
     z.array(z.string().url()).min(1, 'At least one event-related material file is required')
   ),
   zoom_webinar_id: z.string().optional().or(z.literal('')),
+  zoom_template_selection: z.string().optional().or(z.literal('')),
   on24_key: z.string().optional().or(z.literal('')),
   on24_id: z.string().optional().or(z.literal('')),
   expected_promotion_date: z.date().optional(),
@@ -80,6 +90,36 @@ interface VendorRequestFormProps {
   isLoading?: boolean
   /** When set (e.g. admin creating for a vendor), poster uploads use this vendor's storage folder */
   posterUploadVendorId?: string
+  /** Hide manual Zoom ID field when vendor has auto-create on approval */
+  hideManualZoomField?: boolean
+}
+
+function initialZoomTemplateSelection(
+  initialValues?: VendorRequestFormProps['initialValues'],
+): string {
+  const kind = initialValues?.zoom_template_kind
+  const id = initialValues?.zoom_template_webinar_id
+  if (kind && id) return encodeZoomTemplateValue(kind, id)
+  return ''
+}
+
+function applyZoomFieldsToSubmit(
+  data: CreateVendorRequestInput | UpdateVendorRequestInput,
+  options: { hideManualZoomField?: boolean; zoom_webinar_id?: string; zoom_template_selection?: string },
+) {
+  if (options.hideManualZoomField) {
+    data.zoom_webinar_id = undefined
+    const decoded = options.zoom_template_selection
+      ? decodeZoomTemplateValue(options.zoom_template_selection)
+      : null
+    if (decoded) {
+      data.zoom_template_webinar_id = decoded.id
+      data.zoom_template_kind = decoded.kind
+    } else {
+      data.zoom_template_webinar_id = undefined
+      data.zoom_template_kind = undefined
+    }
+  }
 }
 
 // Helper function to safely extract error message
@@ -179,8 +219,10 @@ function getErrorMessage(errors: any[] | undefined, errorMap?: any): string | nu
   return null
 }
 
-export function VendorRequestForm({ initialValues, onSubmit, isLoading, posterUploadVendorId }: VendorRequestFormProps) {
+export function VendorRequestForm({ initialValues, onSubmit, isLoading, posterUploadVendorId, hideManualZoomField }: VendorRequestFormProps) {
   const uploadPoster = useUploadPoster()
+  const { data: zoomTemplates, isLoading: zoomTemplatesLoading, isError: zoomTemplatesError } =
+    useZoomWebinarTemplates({ enabled: Boolean(hideManualZoomField) })
 
   const form = useForm({
     defaultValues: {
@@ -199,6 +241,7 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading, posterUp
           ? [initialValues.poster_file_url]
           : [],
       zoom_webinar_id: initialValues?.zoom_webinar_id || '',
+      zoom_template_selection: initialZoomTemplateSelection(initialValues),
       on24_key: initialValues?.on24_key || '',
       on24_id: initialValues?.on24_id || '',
       expected_promotion_date: initialValues?.expected_promotion_date || undefined,
@@ -226,6 +269,10 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading, posterUp
           on24_id: value.on24_id || undefined,
           expected_promotion_date: value.expected_promotion_date ? formatLocalDate(value.expected_promotion_date) : undefined,
         }
+        applyZoomFieldsToSubmit(submitData, {
+          hideManualZoomField,
+          zoom_template_selection: value.zoom_template_selection,
+        })
         await onSubmit(submitData)
       } catch (error: any) {
         console.error('onSubmit error:', error)
@@ -407,11 +454,15 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading, posterUp
           contact_email: values.contact_email || undefined,
           contact_phone: values.contact_phone || undefined,
           poster_file_url: Array.isArray(values.poster_file_url) ? values.poster_file_url : (values.poster_file_url ? [values.poster_file_url] : undefined),
-          zoom_webinar_id: values.zoom_webinar_id || undefined,
+          zoom_webinar_id: hideManualZoomField ? undefined : (values.zoom_webinar_id || undefined),
           on24_key: values.on24_key || undefined,
           on24_id: values.on24_id || undefined,
           expected_promotion_date: valuesForValidation.expected_promotion_date ? formatLocalDate(valuesForValidation.expected_promotion_date) : undefined,
         }
+        applyZoomFieldsToSubmit(submitData, {
+          hideManualZoomField,
+          zoom_template_selection: values.zoom_template_selection,
+        })
 
         console.log('Submitting form with data:', submitData)
         await onSubmit(submitData)
@@ -791,23 +842,64 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading, posterUp
         }}
       </form.Field>
 
-      <form.Field name="zoom_webinar_id">
-        {(field) => (
-          <div className="space-y-2">
-            <Label htmlFor={field.name}>Zoom Webinar ID</Label>
-            <Input
-              id={field.name}
-              type="text"
-              value={field.state.value || ''}
-              onChange={(e) => field.handleChange(e.target.value)}
-              placeholder="e.g., 123456789"
-            />
-            <p className="text-sm text-muted-foreground">
-              Optional: Enter the Zoom webinar ID if this is an online event.
-            </p>
-          </div>
-        )}
-      </form.Field>
+      {hideManualZoomField ? (
+        <div className="space-y-3 rounded-md border border-dashed p-3">
+          <p className="text-sm text-muted-foreground">
+            Zoom webinar will be created automatically when your request is approved. Choose a past HKRA Zoom webinar or saved template to copy settings (registration, options). Event title and schedule come from this form.
+          </p>
+          <form.Field name="zoom_template_selection">
+            {(field) => (
+              <div className="space-y-2">
+                <Label htmlFor="zoom_template_selection">Zoom webinar template</Label>
+                <Select
+                  value={field.state.value || '__default__'}
+                  onValueChange={(v) => field.handleChange(v === '__default__' ? '' : v)}
+                  disabled={zoomTemplatesLoading}
+                >
+                  <SelectTrigger id="zoom_template_selection">
+                    <SelectValue placeholder={zoomTemplatesLoading ? 'Loading webinars…' : 'Select a template'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__default__">HKRA default settings (no template)</SelectItem>
+                    {(zoomTemplates?.items ?? []).map((item) => (
+                      <SelectItem key={`${item.kind}:${item.id}`} value={encodeZoomTemplateValue(item.kind, item.id)}>
+                        {item.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {zoomTemplatesError && (
+                  <p className="text-sm text-destructive">Could not load Zoom webinars. You can submit without a template.</p>
+                )}
+                {!zoomTemplatesLoading && zoomTemplates?.configured === false && (
+                  <p className="text-sm text-amber-700">{zoomTemplates?.message ?? 'Zoom is not configured; default settings will be used.'}</p>
+                )}
+                {!zoomTemplatesLoading && zoomTemplates?.configured && (zoomTemplates?.items?.length ?? 0) === 0 && (
+                  <p className="text-sm text-muted-foreground">No historical webinars found yet. Default settings will be used.</p>
+                )}
+              </div>
+            )}
+          </form.Field>
+        </div>
+      ) : (
+        <form.Field name="zoom_webinar_id">
+          {(field) => (
+            <div className="space-y-2">
+              <Label htmlFor={field.name}>Zoom Webinar ID</Label>
+              <Input
+                id={field.name}
+                type="text"
+                value={field.state.value || ''}
+                onChange={(e) => field.handleChange(e.target.value)}
+                placeholder="e.g., 123456789"
+              />
+              <p className="text-sm text-muted-foreground">
+                Optional: Enter the Zoom webinar ID if this is an online event.
+              </p>
+            </div>
+          )}
+        </form.Field>
+      )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <form.Field name="on24_key">

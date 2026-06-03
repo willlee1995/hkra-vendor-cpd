@@ -1,14 +1,10 @@
 # Deploy Edge Functions to a self-hosted Supabase VPS over SSH (Windows PowerShell).
 #
 # Usage:
-#   $env:SSH_TARGET = "deploy@203.0.113.10"
+#   Copy .env.deploy.example -> .env.deploy (repo root), edit values, then:
 #   .\scripts\deploy-functions-vps.ps1
 #
-# Optional:
-#   $env:SSH_KEY = "C:\Users\you\.ssh\id_ed25519"
-#   $env:REMOTE_EDGE_FUNCTIONS_DIR = "/tmp/hkra-edge-functions"
-#   $env:DOCKER_CONTAINER = "supabase-edge-functions"
-#   $env:FUNCTIONS_PATH = "/home/deno/functions"
+# Or set env vars manually for this session. Shell env wins over .env.deploy.
 #
 # Requires: OpenSSH Client (ssh), tar (Windows 10+).
 # NOTE: All piping to SSH is done via cmd.exe to avoid PowerShell binary pipe / stdin issues.
@@ -18,12 +14,40 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Resolve-Path (Join-Path $PSScriptRoot "..")
 $FuncRoot = Join-Path $RepoRoot "supabase\functions"
 
+function Import-DeployEnvFile {
+    param([string]$Path)
+    if (-not (Test-Path -LiteralPath $Path)) { return }
+    Get-Content -LiteralPath $Path | ForEach-Object {
+        $line = $_.Trim()
+        if ($line -eq '' -or $line.StartsWith('#')) { return }
+        $eq = $line.IndexOf('=')
+        if ($eq -lt 1) { return }
+        $key = $line.Substring(0, $eq).Trim()
+        $val = $line.Substring($eq + 1).Trim()
+        if ($val.Length -ge 2) {
+            $q = $val[0]
+            if (($q -eq '"' -or $q -eq "'") -and $val.EndsWith($q)) {
+                $val = $val.Substring(1, $val.Length - 2)
+            }
+        }
+        if ($key) {
+            $existing = Get-Item -Path "env:$key" -ErrorAction SilentlyContinue
+            if (-not $existing -or [string]::IsNullOrEmpty($existing.Value)) {
+                Set-Item -Path "env:$key" -Value $val
+            }
+        }
+    }
+}
+
+$deployEnv = Join-Path $RepoRoot ".env.deploy"
+Import-DeployEnvFile -Path $deployEnv
+
 $sshTarget = $env:SSH_TARGET
 if (-not $sshTarget -and $env:VPS_USER -and $env:VPS_HOST) {
     $sshTarget = "$($env:VPS_USER)@$($env:VPS_HOST)"
 }
 if (-not $sshTarget) {
-    Write-Host "Set SSH_TARGET (e.g. deploy@your.vps.ip) or VPS_USER + VPS_HOST" -ForegroundColor Red
+    Write-Host "Set SSH_TARGET in .env.deploy (copy from .env.deploy.example) or VPS_USER + VPS_HOST" -ForegroundColor Red
     exit 1
 }
 
@@ -35,12 +59,15 @@ $functionsPath = if ($env:FUNCTIONS_PATH) { $env:FUNCTIONS_PATH } else { "/home/
 $functionDirs = @(
     "_shared",
     "hkra-create-event",
+    "zoom-create-webinar",
+    "zoom-list-webinars",
     "vendor-requests",
     "vendor-upload",
     "vendor-upload-poster",
     "vendor-info",
     "vendor-reminders",
-    "manage-users"
+    "manage-users",
+    "campaign-proxy"
 )
 
 $missingDirs = @()

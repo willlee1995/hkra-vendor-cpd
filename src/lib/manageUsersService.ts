@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import type { User, CreateUserInput } from './userTypes'
+import type { User, CreateUserInput, UpdateVendorFlagsInput } from './userTypes'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1`
@@ -44,6 +44,22 @@ export const manageUsersService = {
         if (!response.ok) {
             const error = await response.json()
             throw new Error(error.error || 'Failed to create user')
+        }
+
+        return response.json()
+    },
+
+    async updateVendorFlags(input: UpdateVendorFlagsInput): Promise<{ zoom_webinar_auto_create: boolean }> {
+        const headers = await getAuthHeaders()
+        const response = await fetch(`${EDGE_FUNCTION_URL}/manage-users`, {
+            method: 'PATCH',
+            headers,
+            body: JSON.stringify(input),
+        })
+
+        if (!response.ok) {
+            const error = await response.json()
+            throw new Error(error.error || 'Failed to update vendor settings')
         }
 
         return response.json()

@@ -10,6 +10,7 @@ export interface Vendor {
   contact_email: string
   contact_phone: string | null
   notification_emails: string[]
+  zoom_webinar_auto_create?: boolean
   created_at: string
   updated_at: string
 }

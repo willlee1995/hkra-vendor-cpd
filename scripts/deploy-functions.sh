@@ -8,7 +8,16 @@
 
 set -e
 
-# Configuration - Update these values for your self-hosted instance
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+if [ -f "${REPO_ROOT}/.env.deploy" ]; then
+  set -a
+  # shellcheck source=/dev/null
+  . "${REPO_ROOT}/.env.deploy"
+  set +a
+fi
+
+# Configuration - Update these values for your self-hosted instance (or use .env.deploy)
 SUPABASE_URL="${SUPABASE_URL:-https://your-supabase-instance.com}"
 DOCKER_CONTAINER="${DOCKER_CONTAINER:-supabase_functions}"
 FUNCTIONS_PATH="${FUNCTIONS_PATH:-/home/deno/functions}"
@@ -65,6 +74,21 @@ docker cp supabase/functions/hkra-create-event "${DOCKER_CONTAINER}:${FUNCTIONS_
     exit 1
 }
 
+# Deploy zoom-create-webinar function
+echo ""
+echo "📦 Deploying zoom-create-webinar function..."
+docker cp supabase/functions/zoom-create-webinar "${DOCKER_CONTAINER}:${FUNCTIONS_PATH}/" || {
+    echo "❌ Failed to copy zoom-create-webinar"
+    exit 1
+}
+
+echo ""
+echo "📦 Deploying zoom-list-webinars function..."
+docker cp supabase/functions/zoom-list-webinars "${DOCKER_CONTAINER}:${FUNCTIONS_PATH}/" || {
+    echo "❌ Failed to copy zoom-list-webinars"
+    exit 1
+}
+
 # Deploy vendor-requests function
 echo ""
 echo "📦 Deploying vendor-requests function..."
@@ -97,6 +121,30 @@ docker cp supabase/functions/vendor-info "${DOCKER_CONTAINER}:${FUNCTIONS_PATH}/
     exit 1
 }
 
+# Deploy vendor-reminders function
+echo ""
+echo "📦 Deploying vendor-reminders function..."
+docker cp supabase/functions/vendor-reminders "${DOCKER_CONTAINER}:${FUNCTIONS_PATH}/" || {
+    echo "❌ Failed to copy vendor-reminders"
+    exit 1
+}
+
+# Deploy manage-users function
+echo ""
+echo "📦 Deploying manage-users function..."
+docker cp supabase/functions/manage-users "${DOCKER_CONTAINER}:${FUNCTIONS_PATH}/" || {
+    echo "❌ Failed to copy manage-users"
+    exit 1
+}
+
+# Deploy campaign-proxy function
+echo ""
+echo "📦 Deploying campaign-proxy function..."
+docker cp supabase/functions/campaign-proxy "${DOCKER_CONTAINER}:${FUNCTIONS_PATH}/" || {
+    echo "❌ Failed to copy campaign-proxy"
+    exit 1
+}
+
 # Restart the functions service
 echo ""
 echo "🔄 Restarting functions service..."
@@ -114,6 +162,9 @@ echo "   - vendor-upload: ${SUPABASE_URL}/functions/v1/vendor-upload"
 echo "   - vendor-upload-poster: ${SUPABASE_URL}/functions/v1/vendor-upload-poster"
 echo "   - vendor-info: ${SUPABASE_URL}/functions/v1/vendor-info"
 echo "   - hkra-create-event: ${SUPABASE_URL}/functions/v1/hkra-create-event"
+echo "   - zoom-create-webinar: ${SUPABASE_URL}/functions/v1/zoom-create-webinar"
+echo "   - zoom-list-webinars: ${SUPABASE_URL}/functions/v1/zoom-list-webinars"
+echo "   - campaign-proxy: ${SUPABASE_URL}/functions/v1/campaign-proxy"
 echo ""
 echo "💡 Check logs with: docker logs ${DOCKER_CONTAINER}"
 

@@ -14,6 +14,7 @@ export interface User {
     vendor_company_name?: string
     /** Extra CPD notification recipients (vendors only); from `vendors.notification_emails`. */
     vendor_notification_emails?: string[]
+    zoom_webinar_auto_create?: boolean
 }
 
 export interface CreateUserInput {
@@ -23,4 +24,10 @@ export interface CreateUserInput {
     company_name?: string
     contact_name?: string
     phone?: string
+    zoom_webinar_auto_create?: boolean
+}
+
+export interface UpdateVendorFlagsInput {
+    user_id: string
+    zoom_webinar_auto_create: boolean
 }

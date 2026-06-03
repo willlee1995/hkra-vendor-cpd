@@ -12,6 +12,8 @@ import {
   generateAdminApprovalNotificationEmail,
 } from './email.ts'
 import { syncHkraEventFromRequest } from '../_shared/hkraCreateEvent.ts'
+import { syncZoomWebinarFromRequest } from '../_shared/zoomCreateWebinar.ts'
+import { triggerCampaignGeneration } from '../_shared/campaignWebhook.ts'
 
 // Get Supabase credentials from environment variables
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
@@ -300,6 +302,8 @@ serve(async (req) => {
             contact_phone: body.contact_phone || vendorDetails?.contact_phone,
             poster_file_url: body.poster_file_url || null,
             zoom_webinar_id: body.zoom_webinar_id || null,
+            zoom_template_webinar_id: body.zoom_template_webinar_id || null,
+            zoom_template_kind: body.zoom_template_kind || null,
             on24_key: body.on24_key || null,
             on24_id: body.on24_id || null,
             expected_promotion_date: body.expected_promotion_date || null,
@@ -675,6 +679,11 @@ serve(async (req) => {
 
         if (isAdmin && updateBody.status === 'approved' && existingRequest.status !== 'approved') {
           try {
+            await syncZoomWebinarFromRequest(supabaseClient, requestId, { force: false })
+          } catch (zoomErr) {
+            console.error('Zoom webinar sync error:', zoomErr)
+          }
+          try {
             await syncHkraEventFromRequest(supabaseClient, requestId, { force: false })
           } catch (hkraErr) {
             console.error('HKRA WordPress event sync error:', hkraErr)
@@ -686,6 +695,13 @@ serve(async (req) => {
             .single()
           if (freshRequest) {
             responsePayload = freshRequest as Record<string, unknown>
+          }
+
+          // Start FluentCRM email campaign generation (non-blocking)
+          try {
+            await triggerCampaignGeneration(requestId)
+          } catch (campaignErr) {
+            console.error('Campaign generation trigger error:', campaignErr)
           }
         }
 

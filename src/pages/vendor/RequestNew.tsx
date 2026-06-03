@@ -58,6 +58,8 @@ function lastSubmissionToFormInitialValues(req: VendorRequest, vendor: VendorRow
     contact_phone: req.contact_phone || vendor.contact_phone || '',
     poster_file_url: Array.isArray(req.poster_file_url) ? req.poster_file_url : [],
     zoom_webinar_id: req.zoom_webinar_id || '',
+    zoom_template_webinar_id: req.zoom_template_webinar_id ?? undefined,
+    zoom_template_kind: req.zoom_template_kind ?? undefined,
     on24_key: req.on24_key || '',
     on24_id: req.on24_id || '',
     expected_promotion_date: parseLocalDateFromApi(req.expected_promotion_date),
@@ -206,6 +208,11 @@ export function RequestNew() {
                       initialValues as ComponentProps<typeof VendorRequestForm>['initialValues']
                     }
                     posterUploadVendorId={isAdmin() ? selectedVendorId : undefined}
+                    hideManualZoomField={
+                      isAdmin()
+                        ? Boolean(selectedVendor?.zoom_webinar_auto_create)
+                        : Boolean(vendor?.zoom_webinar_auto_create)
+                    }
                   />
                 )}
 

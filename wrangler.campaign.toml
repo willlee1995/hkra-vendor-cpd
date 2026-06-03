@@ -1,0 +1,16 @@
+name = "hkra-campaign-orchestrator"
+main = "worker/campaign/index.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+HKRA_SITE_URL = "https://www.hkra.org.hk"
+HKRA_CAMPAIGN_REPO = "https://github.com/willlee1995/hkra-email-campaign"
+HKRA_DEFAULT_LIST_IDS = "4"
+
+[triggers]
+crons = ["*/2 * * * *"]
+
+# Secrets (wrangler secret put):
+# CURSOR_API_KEY, HKRA_PUBLISH_TOKEN, GITHUB_TOKEN,
+# CAMPAIGN_WEBHOOK_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY

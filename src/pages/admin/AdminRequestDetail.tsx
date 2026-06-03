@@ -14,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
+import { EmailCampaignCard } from '@/components/admin/EmailCampaignCard'
 import { vendorApiClient } from '@/lib/vendorApiClient'
 import { getDisplayableUrl, normalizeStorageUrl, extractStoragePath, getSignedUrl } from '@/lib/storageUtils'
 import {
@@ -205,6 +206,7 @@ export function AdminRequestDetail() {
     const { isAdmin } = useVendorAuth()
     const [isProcessing, setIsProcessing] = useState(false)
     const [hkraSyncing, setHkraSyncing] = useState(false)
+    const [zoomSyncing, setZoomSyncing] = useState(false)
     const [adminNotes, setAdminNotes] = useState('')
     const [rejectionReason, setRejectionReason] = useState('')
     const [cpdPoints, setCpdPoints] = useState<string>('')
@@ -350,6 +352,7 @@ export function AdminRequestDetail() {
             if (result.success === true && result.skipped !== true) {
                 toast.success('HKRA website event created')
                 queryClient.invalidateQueries({ queryKey: ['vendor-request', id] })
+                queryClient.invalidateQueries({ queryKey: ['email-campaign-job', id] })
                 return
             }
             if (result.skipped && result.reason === 'already_exists') {
@@ -386,6 +389,28 @@ export function AdminRequestDetail() {
             toast.error(error instanceof Error ? error.message : 'Failed to create HKRA event')
         } finally {
             setHkraSyncing(false)
+        }
+    }
+
+    const handleZoomCreate = async (force = false) => {
+        if (!id || !isAdmin()) return
+        if (force && !window.confirm('Create a new Zoom webinar? Only use if the previous one failed or was wrong.')) {
+            return
+        }
+        setZoomSyncing(true)
+        try {
+            const result = await vendorApiClient.createZoomWebinarFromRequest(id, { force, resync_wp: true })
+            if (result.skipped) {
+                const reason = result.reason ?? 'unknown'
+                toast.message(`Zoom skipped (${reason})`)
+            } else if (result.success) {
+                toast.success('Zoom webinar created and HKRA event re-synced')
+            }
+            queryClient.invalidateQueries({ queryKey: ['vendor-request', id] })
+        } catch (error: unknown) {
+            toast.error(error instanceof Error ? error.message : 'Failed to create Zoom webinar')
+        } finally {
+            setZoomSyncing(false)
         }
     }
 
@@ -575,12 +600,91 @@ export function AdminRequestDetail() {
                         </Card>
                     )}
 
-                    {/* Zoom Webinar ID Card */}
-                    {request.zoom_webinar_id && (
+                    {request.status === 'approved' && (
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Zoom webinar</CardTitle>
+                                <CardDescription>
+                                    Auto-created for Zoom-eligible vendors on approval. Webinar ID is sent to the HKRA site ticket meta for member registration → Zoom attendee sync.
+                                </CardDescription>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                {request.zoom_sync_error && (
+                                    <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm">
+                                        <p className="font-medium text-destructive">Last Zoom sync error</p>
+                                        <p className="text-destructive/90">{request.zoom_sync_error}</p>
+                                    </div>
+                                )}
+                                {request.zoom_template_webinar_id && (
+                                    <div>
+                                        <p className="text-sm font-medium text-muted-foreground">Zoom template source</p>
+                                        <p className="text-sm">
+                                            {request.zoom_template_kind === 'template' ? 'Saved template' : 'Past webinar'}:{' '}
+                                            <span className="font-mono">{request.zoom_template_webinar_id}</span>
+                                        </p>
+                                    </div>
+                                )}
+                                {request.zoom_webinar_id && (
+                                    <div>
+                                        <p className="text-sm font-medium text-muted-foreground">Webinar ID</p>
+                                        <p className="text-lg font-mono">{request.zoom_webinar_id}</p>
+                                        {request.zoom_created_at && (
+                                            <p className="mt-1 text-xs text-muted-foreground">
+                                                Created {format(new Date(request.zoom_created_at), 'PPp')}
+                                            </p>
+                                        )}
+                                    </div>
+                                )}
+                                {request.zoom_join_url && (
+                                    <div>
+                                        <p className="text-sm font-medium text-muted-foreground">Attendee join link</p>
+                                        <a
+                                            href={request.zoom_join_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="mt-1 inline-flex break-all text-primary hover:underline"
+                                        >
+                                            {request.zoom_join_url}
+                                        </a>
+                                    </div>
+                                )}
+                                {request.zoom_host_start_url && (
+                                    <div>
+                                        <p className="text-sm font-medium text-muted-foreground">Host start link (admin)</p>
+                                        <a
+                                            href={request.zoom_host_start_url}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="mt-1 inline-flex break-all text-primary hover:underline"
+                                        >
+                                            Open host link
+                                        </a>
+                                    </div>
+                                )}
+                                {request.hkra_wp_event_id && !request.zoom_webinar_id && (
+                                    <p className="text-sm text-amber-700">
+                                        HKRA event exists but no Zoom webinar ID — registration bridge will not run until Zoom is created and the site event is re-synced.
+                                    </p>
+                                )}
+                                <div className="flex flex-wrap gap-2">
+                                    <Button
+                                        type="button"
+                                        variant="secondary"
+                                        disabled={zoomSyncing}
+                                        onClick={() => handleZoomCreate(false)}
+                                    >
+                                        {request.zoom_webinar_id ? 'Retry Zoom + re-sync HKRA' : 'Create Zoom webinar'}
+                                    </Button>
+                                </div>
+                            </CardContent>
+                        </Card>
+                    )}
+
+                    {request.status !== 'approved' && request.zoom_webinar_id && (
                         <Card>
                             <CardHeader>
                                 <CardTitle>Zoom Webinar ID</CardTitle>
-                                <CardDescription>Webinar ID for online event</CardDescription>
+                                <CardDescription>Vendor-supplied webinar ID</CardDescription>
                             </CardHeader>
                             <CardContent>
                                 <p className="text-lg font-mono">{request.zoom_webinar_id}</p>
@@ -752,7 +856,7 @@ export function AdminRequestDetail() {
                             <CardHeader>
                                 <CardTitle>HKRA website event</CardTitle>
                                 <CardDescription>
-                                    Publishes this CPD event to the HKRA site (Events Manager). Approving a request also runs this automatically when server credentials are set.
+                                    Publishes this CPD event to the HKRA site (Events Manager). Approving runs Zoom create (if eligible) then this sync. Re-sync after Zoom so ticket product meta includes the webinar ID.
                                 </CardDescription>
                             </CardHeader>
                             <CardContent className="space-y-4">
@@ -823,6 +927,15 @@ export function AdminRequestDetail() {
                                 </p>
                             </CardContent>
                         </Card>
+                    )}
+
+                    {request.status === 'approved' && id && (
+                        <EmailCampaignCard
+                            requestId={id}
+                            requestStatus={request.status}
+                            registrationUrl={request.hkra_event_permalink}
+                            hkraWpEventId={request.hkra_wp_event_id}
+                        />
                     )}
 
                     {request.status === 'rejected' && (

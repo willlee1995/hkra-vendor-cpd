@@ -17,6 +17,13 @@ export interface VendorRequestRow {
   contact_email?: string | null
   contact_phone?: string | null
   zoom_webinar_id?: string | null
+  zoom_join_url?: string | null
+  zoom_host_start_url?: string | null
+  zoom_created_at?: string | null
+  zoom_sync_error?: string | null
+  zoom_template_webinar_id?: string | null
+  zoom_template_kind?: string | null
+  vendor_id?: string
   on24_key?: string | null
   on24_id?: string | null
   expected_promotion_date?: string | null
@@ -45,10 +52,13 @@ export interface HkraCreateEventPayload {
   ticket_name?: string
   allowed_roles?: string[]
   booking_form_id?: number
+  attendee_form?: string | number
   cpd?: string
   event_categories?: (string | number)[]
   event_tags?: (string | number)[]
   subspecialties?: (string | number)[]
+  /** Stored on EM Pro ticket/product meta for Zoom registrant bridge */
+  zoom_webinar_id?: string
 }
 
 function escapeHtml(s: string): string {
@@ -95,6 +105,15 @@ function parseEnvBool(name: string, defaultTrue: boolean): boolean {
   if (["0", "false", "no", "off"].includes(lower)) return false
   if (["1", "true", "yes", "on"].includes(lower)) return true
   return defaultTrue
+}
+
+/** WordPress post status for new events. Default draft — publish manually on HKRA site when ready. */
+function parseEventStatus(): string {
+  const v = Deno.env.get("HKRA_DEFAULT_EVENT_STATUS")?.trim().toLowerCase()
+  if (v === "publish" || v === "draft" || v === "pending" || v === "private") {
+    return v
+  }
+  return "draft"
 }
 
 function parseJsonArray(name: string): string[] | undefined {
@@ -147,6 +166,9 @@ export function buildPayloadFromVendorRequest(row: VendorRequestRow): HkraCreate
   if (row.zoom_webinar_id) {
     lines.push(`<p><strong>Zoom webinar ID:</strong> ${escapeHtml(row.zoom_webinar_id)}</p>`)
   }
+  if (row.zoom_join_url) {
+    lines.push(`<p><strong>Zoom join link:</strong> ${escapeHtml(row.zoom_join_url)}</p>`)
+  }
   if (row.on24_key || row.on24_id) {
     const bits: string[] = []
     if (row.on24_key) bits.push(`Key: ${escapeHtml(row.on24_key)}`)
@@ -163,7 +185,7 @@ export function buildPayloadFromVendorRequest(row: VendorRequestRow): HkraCreate
   const payload: HkraCreateEventPayload = {
     title: row.event_name,
     content,
-    status: "publish",
+    status: parseEventStatus(),
     event_timezone: Deno.env.get("HKRA_DEFAULT_TIMEZONE")?.trim() || "Asia/Hong_Kong",
     event_start_date: formatDateOnly(row.event_start_date),
     event_end_date: formatDateOnly(row.event_end_date),
@@ -186,12 +208,15 @@ export function buildPayloadFromVendorRequest(row: VendorRequestRow): HkraCreate
     payload.ticket_name = Deno.env.get("HKRA_DEFAULT_TICKET_NAME")?.trim() || "HKRA - Registration"
     const roles = parseJsonArray("HKRA_ALLOWED_ROLES_JSON")
     if (roles?.length) payload.allowed_roles = roles
+    payload.attendee_form = Deno.env.get("HKRA_DEFAULT_ATTENDEE_FORM")?.trim() || "none"
   } else {
     payload.event_rsvp = false
   }
 
   const bf = parseEnvInt("HKRA_DEFAULT_BOOKING_FORM_ID")
-  if (bf !== undefined && bf > 0) payload.booking_form_id = bf
+  if (bf !== undefined && bf > 0) {
+    payload.booking_form_id = bf
+  }
 
   const cats = parseJsonNumberArray("HKRA_EVENT_CATEGORIES_JSON")
   if (cats?.length) payload.event_categories = cats
@@ -199,6 +224,11 @@ export function buildPayloadFromVendorRequest(row: VendorRequestRow): HkraCreate
   if (tags?.length) payload.event_tags = tags
   const subs = parseJsonNumberArray("HKRA_SUBSPECIALTIES_JSON")
   if (subs?.length) payload.subspecialties = subs
+
+  const zoomId = row.zoom_webinar_id?.trim()
+  if (zoomId) {
+    payload.zoom_webinar_id = zoomId
+  }
 
   return payload
 }
@@ -231,13 +261,77 @@ async function postCreateEventToWordPress(
         : typeof rawId === "string"
         ? parseInt(rawId, 10)
         : NaN
-    const link = (body as { link?: string }).link
-    if (Number.isFinite(id) && typeof link === "string" && link.length > 0) {
-      return { ok: true, id, link }
+    const linkFromBody = (body as { link?: string }).link
+    if (Number.isFinite(id)) {
+      if (typeof linkFromBody === "string" && linkFromBody.length > 0) {
+        return { ok: true, id, link: linkFromBody }
+      }
+      const fetched = await fetchWordPressEventPermalink(base, id)
+      if (fetched) {
+        return { ok: true, id, link: fetched }
+      }
     }
   }
 
   return { ok: false, status: res.status, body }
+}
+
+async function fetchWordPressEventPermalink(baseUrl: string, wpEventId: number): Promise<string | null> {
+  const base = baseUrl.replace(/\/$/, "")
+  const user = Deno.env.get("HKRA_WP_USER")?.trim()
+  const pass = Deno.env.get("HKRA_WP_APP_PASSWORD")?.trim()
+  const headers: Record<string, string> = { Accept: "application/json" }
+  if (user && pass) {
+    headers.Authorization = `Basic ${btoa(`${user}:${pass}`)}`
+  }
+
+  const paths = [
+    `/wp-json/wp/v2/events/${wpEventId}`,
+    `/wp-json/wp/v2/event/${wpEventId}`,
+    `/wp-json/wp/v2/posts/${wpEventId}`,
+  ]
+
+  for (const path of paths) {
+    try {
+      const res = await fetch(`${base}${path}`, { headers })
+      if (!res.ok) continue
+      const data = (await res.json()) as { link?: string; guid?: { rendered?: string } }
+      const link = data.link ?? data.guid?.rendered
+      if (typeof link === "string" && link.length > 0) {
+        return link
+      }
+    } catch {
+      // try next endpoint
+    }
+  }
+
+  return null
+}
+
+async function backfillPermalinkIfMissing(
+  supabase: SupabaseClient,
+  requestId: string,
+  row: VendorRequestRow,
+): Promise<VendorRequestRow> {
+  if (row.hkra_event_permalink) return row
+  const wpId = row.hkra_wp_event_id
+  if (wpId == null || wpId <= 0) return row
+  if (!hasHkraWordPressConfig()) return row
+
+  const base = Deno.env.get("HKRA_WP_BASE_URL")!.replace(/\/$/, "")
+  const link = await fetchWordPressEventPermalink(base, wpId)
+  if (!link) return row
+
+  await supabase
+    .from("vendor_requests")
+    .update({
+      hkra_event_permalink: link,
+      hkra_event_sync_error: null,
+    })
+    .eq("id", requestId)
+
+  const { data: updated } = await supabase.from("vendor_requests").select("*").eq("id", requestId).single()
+  return (updated || { ...row, hkra_event_permalink: link }) as VendorRequestRow
 }
 
 export type SyncHkraResult =
@@ -276,7 +370,8 @@ export async function syncHkraEventFromRequest(
   const r = row as VendorRequestRow
 
   if (r.hkra_wp_event_id != null && r.hkra_wp_event_id > 0 && !options.force) {
-    return { ok: true, skipped: true, reason: "already_exists", request: r }
+    const backfilled = await backfillPermalinkIfMissing(supabase, requestId, r)
+    return { ok: true, skipped: true, reason: "already_exists", request: backfilled }
   }
 
   if (!hasHkraWordPressConfig()) {

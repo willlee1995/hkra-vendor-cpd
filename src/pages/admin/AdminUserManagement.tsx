@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useUsers, useDeleteUser } from '@/hooks/useUsers'
+import { useUsers, useDeleteUser, useUpdateVendorFlags } from '@/hooks/useUsers'
 import type { User } from '@/lib/userTypes'
 import { useVendorAuth } from '@/hooks/useVendorAuth'
 import { usePageTitle } from '@/hooks/usePageTitle'
@@ -33,6 +33,7 @@ export function AdminUserManagement() {
     const { data: users, isLoading, refetch: refetchUsers } = useUsers()
     const { isSuperAdmin, isAdmin } = useVendorAuth()
     const deleteUser = useDeleteUser()
+    const updateVendorFlags = useUpdateVendorFlags()
     const [isaddDialogOpen, setIsAddDialogOpen] = useState(false)
     const [notifyDialogUser, setNotifyDialogUser] = useState<User | null>(null)
 
@@ -82,7 +83,7 @@ export function AdminUserManagement() {
                     <CardHeader>
                         <CardTitle>Users</CardTitle>
                         <CardDescription>
-                            A list of all users including their role and status.
+                            For vendor accounts, use <strong>Zoom auto</strong> (On/Off) to allow API webinar creation when their requests are approved.
                         </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -95,6 +96,7 @@ export function AdminUserManagement() {
                                         <TableHead>Email</TableHead>
                                         <TableHead>Role</TableHead>
                                         <TableHead>Company</TableHead>
+                                        <TableHead title="Auto-create Zoom webinar on approval">Zoom auto</TableHead>
                                         <TableHead>Last Sign In</TableHead>
                                         <TableHead>Created At</TableHead>
                                         <TableHead className="text-right">Actions</TableHead>
@@ -117,6 +119,26 @@ export function AdminUserManagement() {
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell>{user.vendor_company_name || '-'}</TableCell>
+                                                <TableCell>
+                                                    {role === 'vendor' ? (
+                                                        <Button
+                                                            type="button"
+                                                            variant={user.zoom_webinar_auto_create ? 'default' : 'outline'}
+                                                            size="sm"
+                                                            disabled={updateVendorFlags.isPending}
+                                                            onClick={() =>
+                                                                updateVendorFlags.mutate({
+                                                                    user_id: user.id,
+                                                                    zoom_webinar_auto_create: !user.zoom_webinar_auto_create,
+                                                                })
+                                                            }
+                                                        >
+                                                            {user.zoom_webinar_auto_create ? 'On' : 'Off'}
+                                                        </Button>
+                                                    ) : (
+                                                        '-'
+                                                    )}
+                                                </TableCell>
                                                 <TableCell>{user.last_sign_in_at ? format(new Date(user.last_sign_in_at), 'MMM d, yyyy HH:mm') : 'Never'}</TableCell>
                                                 <TableCell>{format(new Date(user.created_at), 'MMM d, yyyy')}</TableCell>
                                                 <TableCell className="text-right">
@@ -147,7 +169,7 @@ export function AdminUserManagement() {
                                     })}
                                     {!users?.length && (
                                         <TableRow>
-                                            <TableCell colSpan={6} className="text-center h-24">No users found.</TableCell>
+                                            <TableCell colSpan={7} className="text-center h-24">No users found.</TableCell>
                                         </TableRow>
                                     )}
                                 </TableBody>

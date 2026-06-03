@@ -142,7 +142,7 @@ serve(async (req) => {
           updated_at: new Date().toISOString(),
         })
         .eq('user_id', user.id)
-        .select('id, user_id, company_name, contact_name, contact_email, contact_phone, notification_emails, created_at, updated_at')
+        .select('id, user_id, company_name, contact_name, contact_email, contact_phone, notification_emails, zoom_webinar_auto_create, created_at, updated_at')
         .maybeSingle()
 
       if (updateError) {
@@ -199,7 +199,7 @@ serve(async (req) => {
     // GET — single vendor profile (bypasses RLS via service role)
     const { data: vendor, error: vendorError } = await supabaseClient
       .from('vendors')
-      .select('id, user_id, company_name, contact_name, contact_email, contact_phone, notification_emails, created_at, updated_at')
+      .select('id, user_id, company_name, contact_name, contact_email, contact_phone, notification_emails, zoom_webinar_auto_create, created_at, updated_at')
       .eq('user_id', user.id)
       .maybeSingle()
 

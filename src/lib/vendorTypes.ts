@@ -7,6 +7,7 @@ export interface Vendor {
   contact_name: string
   contact_email: string
   contact_phone?: string
+  zoom_webinar_auto_create?: boolean
   created_at: string
   updated_at: string
 }
@@ -25,7 +26,13 @@ export interface VendorRequest {
   contact_email: string
   contact_phone?: string
   poster_file_url?: string[] // Array of URLs for event-related materials
-  zoom_webinar_id?: string // Optional Zoom webinar ID
+  zoom_webinar_id?: string // Optional Zoom webinar ID (vendor-entered or API-created)
+  zoom_template_webinar_id?: string | null
+  zoom_template_kind?: 'template' | 'webinar' | 'past' | null
+  zoom_join_url?: string | null
+  zoom_host_start_url?: string | null
+  zoom_created_at?: string | null
+  zoom_sync_error?: string | null
   on24_key?: string
   on24_id?: string
   expected_promotion_date?: string
@@ -70,6 +77,9 @@ export interface CreateVendorRequestInput {
   contact_phone?: string
   poster_file_url?: string[] // Array of URLs for event-related materials
   zoom_webinar_id?: string
+  /** Zoom template or source webinar id (when auto-create enabled) */
+  zoom_template_webinar_id?: string
+  zoom_template_kind?: 'template' | 'webinar' | 'past'
   on24_key?: string
   on24_id?: string
   expected_promotion_date?: string
@@ -88,6 +98,8 @@ export interface UpdateVendorRequestInput {
   contact_phone?: string
   poster_file_url?: string[] // Array of URLs for event-related materials
   zoom_webinar_id?: string
+  zoom_template_webinar_id?: string
+  zoom_template_kind?: 'template' | 'webinar' | 'past'
   on24_key?: string
   on24_id?: string
   expected_promotion_date?: string

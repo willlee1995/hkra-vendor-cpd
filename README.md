@@ -37,27 +37,25 @@ supabase/
 bun install
 ```
 
-### 2. Set Up Supabase
+### 2. Set Up Supabase (self-hosted)
 
-1. Create a new Supabase project at https://supabase.com
-2. Copy your project URL and anon key
-3. Create a `.env` file in the root directory:
+Production uses **self-hosted Supabase** on HKRA infrastructure (not Supabase Cloud).
+
+1. Obtain the instance URL and anon key from your administrator.
+2. Create a `.env` file in the root directory:
 
 ```env
-VITE_SUPABASE_URL=your_supabase_project_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_SUPABASE_URL=https://your-hkra-supabase-instance
+VITE_SUPABASE_ANON_KEY=your_anon_key
 ```
 
 ### 3. Run Database Migrations
 
-Apply the migrations to set up the database schema:
+**Production / staging:** open **SQL Editor** in Supabase Studio (or `psql`), then **paste and execute** each file in [`supabase/migrations/`](supabase/migrations/) in **filename order**. Skip files already applied.
 
-```bash
-# Using Supabase CLI
-supabase db push
+Do **not** use `supabase db push` unless your team has explicitly configured the CLI against this host.
 
-# Or manually run the SQL files in supabase/migrations/ in order
-```
+See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** for a full checklist, including recent Zoom migrations.
 
 ### 4. Set Up Storage Buckets
 
@@ -148,11 +146,11 @@ docker cp supabase/functions/vendor-upload supabase_functions:/home/deno/functio
 docker restart supabase_functions
 ```
 
-**For Supabase Cloud:**
+**Deploy from another machine to the VPS:**
 
-```bash
-supabase functions deploy vendor-requests
-supabase functions deploy vendor-upload
+```powershell
+$env:SSH_TARGET = "user@your.vps"
+.\scripts\deploy-functions-vps.ps1
 ```
 
 ### 7. Deploy to Cloudflare

@@ -1,10 +1,15 @@
 import { supabase } from './supabase'
 import type {
+  EmailCampaignJob,
+  FluentCrmAudience,
+} from './campaignTypes'
+import type {
   VendorRequest,
   CreateVendorRequestInput,
   UpdateVendorRequestInput,
   VendorRequestsFilter,
 } from './vendorTypes'
+import type { ZoomWebinarTemplateOption } from './zoomTypes'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1`
@@ -279,6 +284,178 @@ export const vendorApiClient = {
       link?: string
       request?: VendorRequest
     }
+  },
+
+  /**
+   * Create Zoom webinar via API for an approved request (Zoom-eligible vendors).
+   * Admin only. Re-syncs HKRA WordPress event by default after success.
+   */
+  async listZoomWebinarTemplates(): Promise<{
+    items: ZoomWebinarTemplateOption[]
+    configured: boolean
+    message?: string
+  }> {
+    const headers = await getAuthHeaders()
+    const response = await fetch(`${EDGE_FUNCTION_URL}/zoom-list-webinars`, {
+      method: 'GET',
+      headers,
+    })
+
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      const err = typeof data.error === 'string' ? data.error : 'Failed to load Zoom webinars'
+      throw new Error(err)
+    }
+
+    return data as {
+      items: ZoomWebinarTemplateOption[]
+      configured: boolean
+      message?: string
+    }
+  },
+
+  async createZoomWebinarFromRequest(
+    requestId: string,
+    options?: { force?: boolean; resync_wp?: boolean },
+  ): Promise<{
+    success: boolean
+    skipped?: boolean
+    reason?: string
+    error?: string
+    zoom_webinar_id?: string
+    zoom_join_url?: string
+    request?: VendorRequest
+  }> {
+    const headers = await getAuthHeaders()
+    const response = await fetch(`${EDGE_FUNCTION_URL}/zoom-create-webinar`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        request_id: requestId,
+        force: options?.force === true,
+        resync_wp: options?.resync_wp !== false,
+      }),
+    })
+
+    const data = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      const err = typeof data.error === 'string' ? data.error : 'Failed to create Zoom webinar'
+      throw new Error(err)
+    }
+
+    return data as {
+      success: boolean
+      skipped?: boolean
+      reason?: string
+      zoom_webinar_id?: string
+      zoom_join_url?: string
+      request?: VendorRequest
+    }
+  },
+
+  async getEmailCampaignJob(requestId: string): Promise<{ job: EmailCampaignJob | null }> {
+    const headers = await getAuthHeaders()
+    const response = await fetch(`${EDGE_FUNCTION_URL}/campaign-proxy/${requestId}`, {
+      method: 'GET',
+      headers,
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.error || 'Failed to load email campaign job')
+    }
+
+    return response.json()
+  },
+
+  async getFluentCrmAudiences(): Promise<{ lists: FluentCrmAudience[] }> {
+    const headers = await getAuthHeaders()
+    const response = await fetch(`${EDGE_FUNCTION_URL}/campaign-proxy/audiences`, {
+      method: 'GET',
+      headers,
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.error || 'Failed to load FluentCRM audiences')
+    }
+
+    return response.json()
+  },
+
+  async approveEmailCampaignSchedule(
+    requestId: string,
+    listIds: string[],
+    scheduleAt?: string,
+  ): Promise<{ success: boolean; result?: Record<string, unknown> }> {
+    const headers = await getAuthHeaders()
+    const response = await fetch(
+      `${EDGE_FUNCTION_URL}/campaign-proxy/${requestId}/approve-schedule`,
+      {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          list_ids: listIds,
+          ...(scheduleAt ? { schedule_at: scheduleAt } : {}),
+        }),
+      },
+    )
+
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to schedule FluentCRM campaign')
+    }
+
+    return data
+  },
+
+  async startEmailCampaignGeneration(
+    requestId: string,
+    options?: { force?: boolean; adminPrompt?: string | null },
+  ): Promise<{ job_id: string; status: string; skipped?: boolean; message?: string }> {
+    const headers = await getAuthHeaders()
+    const response = await fetch(`${EDGE_FUNCTION_URL}/campaign-proxy/${requestId}/start`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        force: options?.force === true,
+        ...(options?.adminPrompt != null && options.adminPrompt.trim()
+          ? { admin_prompt: options.adminPrompt.trim() }
+          : {}),
+      }),
+    })
+
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to start campaign generation')
+    }
+
+    return data
+  },
+
+  async retryEmailCampaignGeneration(
+    requestId: string,
+    options?: { adminPrompt?: string | null },
+  ): Promise<{ job_id: string; status: string }> {
+    const headers = await getAuthHeaders()
+    const response = await fetch(`${EDGE_FUNCTION_URL}/campaign-proxy/${requestId}/retry`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(
+        options?.adminPrompt != null && options.adminPrompt.trim()
+          ? { admin_prompt: options.adminPrompt.trim() }
+          : {},
+      ),
+    })
+
+    const data = await response.json().catch(() => ({}))
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to retry campaign generation')
+    }
+
+    return data
   },
 }
 
