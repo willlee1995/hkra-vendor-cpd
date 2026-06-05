@@ -1,5 +1,41 @@
 const REQUIRED_FOOTER_TOKENS = ['##crm.unsubscribe_url##', '{{crm.business_address}}'] as const
 
+/** CJK unified + extension A (Traditional/Simplified on poster text in HTML body). */
+const CJK_REGEX = /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/
+
+export function adminRequestsBilingualChinese(adminPrompt: string | null | undefined): boolean {
+  if (!adminPrompt?.trim()) return false
+  return /bilingual|traditional chinese|include chinese|add chinese|chinese copy|chinese subject|繁體|繁体|中英|雙語|双语/i.test(
+    adminPrompt,
+  )
+}
+
+function extractVisibleTextFromHtml(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Default vendor CPD emails are English-only unless admin extra prompt requests Chinese. */
+export function validateEnglishOnlyEmailCopy(html: string, emailSubject?: string | null): string[] {
+  const issues: string[] = []
+  const text = extractVisibleTextFromHtml(html)
+  if (CJK_REGEX.test(text)) {
+    issues.push(
+      'email body contains Chinese characters (use English-only copy unless Extra context requests bilingual)',
+    )
+  }
+  if (emailSubject && CJK_REGEX.test(emailSubject)) {
+    issues.push(
+      'email subject contains Chinese characters (use English-only subject unless Extra context requests bilingual)',
+    )
+  }
+  return issues
+}
+
 
 
 export function validateHtmlFooter(html: string): string[] {

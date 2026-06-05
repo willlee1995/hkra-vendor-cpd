@@ -20,7 +20,14 @@ import { buildCampaignPrompt, campaignBranchName } from './prompt'
 import { resolveRegistrationUrl } from './registration-url'
 import { createSupabaseRest, normalizePosterUrls, posterUrlsForEmail, adminMaterialUrls } from './supabase'
 import type { CampaignJobRow, Env, VendorRequestRow } from './types'
-import { assertPosterUrlsFetchable, validateHtmlFooter, validateHtmlStructure, validateWebinarEmailSections } from './validate'
+import {
+  adminRequestsBilingualChinese,
+  assertPosterUrlsFetchable,
+  validateEnglishOnlyEmailCopy,
+  validateHtmlFooter,
+  validateHtmlStructure,
+  validateWebinarEmailSections,
+} from './validate'
 
 const STALE_GENERATING_MS = 20 * 60 * 1000
 const INACTIVE_AGENT_FAIL_MS = 3 * 60 * 1000
@@ -218,6 +225,19 @@ async function completeJobWithArtifacts(
   if (!meta.email_subject) meta.email_subject = String(meta.title)
   if (!meta.email_pre_header) meta.email_pre_header = ''
   meta.design_template = 'raw_html'
+
+  if (!adminRequestsBilingualChinese(job.admin_prompt)) {
+    const langIssues = validateEnglishOnlyEmailCopy(artifacts.html, meta.email_subject)
+    if (langIssues.length) {
+      throw new CampaignNeedsInputError(
+        ['email_content'],
+        formatMissingFieldsMessage(
+          ['email_content'],
+          `Language check failed (${langIssues.join('; ')}). Emails are English-only by default. Regenerate, or add "bilingual" / "Traditional Chinese" in Extra context if Chinese copy is required.`,
+        ),
+      )
+    }
+  }
 
   const listIds = defaultListIds
   const recipients = recipientsFromListIds(listIds)

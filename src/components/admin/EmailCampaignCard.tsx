@@ -215,8 +215,8 @@ export function EmailCampaignCard({
             onChange={(event) => setAdminPrompt(event.target.value)}
             placeholder={
               promptRequired
-                ? 'Paste speaker names, topics, affiliations, fees, minimum attendance, bilingual titles…'
-                : 'Speaker bios, co-host details, bilingual title wording, special fees, attendance rules…'
+                ? 'Paste speaker names, topics, affiliations, fees, minimum attendance…'
+                : 'Speaker bios, co-host details, special fees, attendance rules… (add "bilingual" here only if you need Chinese copy)'
             }
             rows={5}
             maxLength={8000}

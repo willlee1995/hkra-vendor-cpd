@@ -88,7 +88,7 @@ export function buildCampaignPrompt(request: VendorRequestRow, input: {
 
   const approvalNotes = adminNotes
 
-    ? `\nAdmin notes from CPD approval (include relevant detail in email copy):\n${adminNotes}\n`
+    ? `\nAdmin notes from CPD approval (use relevant facts in **English** email copy only — do not paste Chinese from notes unless Admin extra prompt below requests bilingual):\n${adminNotes}\n`
 
     : ''
 
@@ -138,7 +138,7 @@ Webinar CPD block (mandatory — class .important-note, heading "Attendance & CP
 
 - Use the unique link from confirmation email (not a forwarded link)
 
-- Minimum attendance: extract from poster; if not stated use 45 minutes for CPD eligibility`
+- Certificate of Attendance: attendance of **more than 75% of the total course duration** (state minutes when event length is known; poster may override)`
 
     : `
 
@@ -214,7 +214,9 @@ Mandatory HTML sections (in order):
 
 Content rules:
 
-- English + Traditional Chinese (繁體, Hong Kong) only — never Simplified Chinese; convert poster text if needed
+- **LANGUAGE (mandatory):** Write the **entire email in English only** — subject (in .meta.json), body, headings, CTAs, sign-off. Chinese on the poster image does **not** require Chinese in the email; extract facts in English and embed the poster as-is.
+- Add Chinese only when **Admin extra prompt** above explicitly requests bilingual / Traditional Chinese copy. Then use English + 繁體 (Hong Kong) only — never Simplified Chinese.
+- Do NOT add 香港放射師協會 or bilingual headings unless Admin extra prompt requests Chinese.
 
 - Do NOT link PDFs/rundowns or add download / "Event materials" sections
 
