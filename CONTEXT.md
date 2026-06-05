@@ -22,4 +22,4 @@ When a member completes Events Manager booking on hkra.org.hk, WordPress reads `
 
 ## HKRA website event
 
-WordPress Events Manager event linked by `vendor_requests.hkra_wp_event_id`. Created as draft on approval when WordPress credentials are configured.
+WordPress Events Manager event linked by `vendor_requests.hkra_wp_event_id`. Created as published on approval when WordPress credentials are configured (override with `HKRA_DEFAULT_EVENT_STATUS=draft`).

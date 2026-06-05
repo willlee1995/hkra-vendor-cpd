@@ -77,7 +77,7 @@ JSON body parameters are read via `$request->get_param()`, so top-level JSON key
 | Parameter | Type   | Default   | Description                                  |
 | --------- | ------ | --------- | -------------------------------------------- |
 | `content` | string | —         | HTML allowed; passed through `wp_kses_post`. |
-| `status`  | string | `draft` | Post status (e.g. `draft`, `publish`, `pending`, `private`). Vendor portal integration also sends `draft` explicitly; publish on hkra.org.hk when ready. |
+| `status`  | string | `publish` | Post status (e.g. `draft`, `publish`, `pending`, `private`). Vendor portal integration defaults to `publish` so approved events go live; set `HKRA_DEFAULT_EVENT_STATUS=draft` on the functions container to create drafts instead. |
 
 ### Schedule and timezone
 
@@ -177,7 +177,7 @@ curl -sS -X POST "https://YOUR-DOMAIN/wp-json/em-custom/v1/create-event" \
   -d '{
     "title": "Example CPD Webinar",
     "content": "<p>Event description HTML.</p>",
-    "status": "draft",
+    "status": "publish",
     "event_timezone": "Asia/Hong_Kong",
     "event_start_date": "2026-06-01",
     "event_end_date": "2026-06-01",

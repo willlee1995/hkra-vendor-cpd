@@ -14,14 +14,7 @@ import { toast } from 'sonner'
 import { normalizeStorageUrl } from '@/lib/storageUtils'
 import type { CreateVendorRequestInput, UpdateVendorRequestInput } from '@/lib/vendorTypes'
 import { TimePicker } from '@/components/ui/datetime-picker'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import { useZoomWebinarTemplates } from '@/hooks/useZoomWebinarTemplates'
+import { ZoomTemplateSelect } from '@/components/zoom/ZoomTemplateSelect'
 import { decodeZoomTemplateValue, encodeZoomTemplateValue } from '@/lib/zoomTypes'
 
 const timeToDate = (timeStr: string) => {
@@ -221,8 +214,6 @@ function getErrorMessage(errors: any[] | undefined, errorMap?: any): string | nu
 
 export function VendorRequestForm({ initialValues, onSubmit, isLoading, posterUploadVendorId, hideManualZoomField }: VendorRequestFormProps) {
   const uploadPoster = useUploadPoster()
-  const { data: zoomTemplates, isLoading: zoomTemplatesLoading, isError: zoomTemplatesError } =
-    useZoomWebinarTemplates({ enabled: Boolean(hideManualZoomField) })
 
   const form = useForm({
     defaultValues: {
@@ -849,35 +840,10 @@ export function VendorRequestForm({ initialValues, onSubmit, isLoading, posterUp
           </p>
           <form.Field name="zoom_template_selection">
             {(field) => (
-              <div className="space-y-2">
-                <Label htmlFor="zoom_template_selection">Zoom webinar template</Label>
-                <Select
-                  value={field.state.value || '__default__'}
-                  onValueChange={(v) => field.handleChange(v === '__default__' ? '' : v)}
-                  disabled={zoomTemplatesLoading}
-                >
-                  <SelectTrigger id="zoom_template_selection">
-                    <SelectValue placeholder={zoomTemplatesLoading ? 'Loading webinars…' : 'Select a template'} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__default__">HKRA default settings (no template)</SelectItem>
-                    {(zoomTemplates?.items ?? []).map((item) => (
-                      <SelectItem key={`${item.kind}:${item.id}`} value={encodeZoomTemplateValue(item.kind, item.id)}>
-                        {item.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {zoomTemplatesError && (
-                  <p className="text-sm text-destructive">Could not load Zoom webinars. You can submit without a template.</p>
-                )}
-                {!zoomTemplatesLoading && zoomTemplates?.configured === false && (
-                  <p className="text-sm text-amber-700">{zoomTemplates?.message ?? 'Zoom is not configured; default settings will be used.'}</p>
-                )}
-                {!zoomTemplatesLoading && zoomTemplates?.configured && (zoomTemplates?.items?.length ?? 0) === 0 && (
-                  <p className="text-sm text-muted-foreground">No historical webinars found yet. Default settings will be used.</p>
-                )}
-              </div>
+              <ZoomTemplateSelect
+                value={field.state.value}
+                onChange={field.handleChange}
+              />
             )}
           </form.Field>
         </div>

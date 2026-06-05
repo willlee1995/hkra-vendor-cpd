@@ -29,7 +29,7 @@ Optional tuning (defaults are safe for most HKRA CPD flows):
 | Variable | Default / notes |
 | -------- | ---------------- |
 | `HKRA_DEFAULT_TIMEZONE` | `Asia/Hong_Kong` |
-| `HKRA_DEFAULT_EVENT_STATUS` | `draft` — WordPress post status for new events (`draft`, `publish`, `pending`, `private`). Publish on hkra.org.hk when the event is ready to go live. |
+| `HKRA_DEFAULT_EVENT_STATUS` | `publish` — WordPress post status for new events (`draft`, `publish`, `pending`, `private`). Set to `draft` if admins should publish manually on hkra.org.hk. |
 | `HKRA_DEFAULT_EVENT_RSVP` | `true` — enables RSVP + one ticket per `event-api.md` |
 | `HKRA_DEFAULT_TICKET_PRICE` | `50` |
 | `HKRA_DEFAULT_TICKET_SPACES` | `500` |

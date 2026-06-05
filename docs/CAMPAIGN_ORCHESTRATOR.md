@@ -4,20 +4,26 @@ Runs Cursor cloud generation and FluentCRM scheduling for approved vendor CPD re
 
 ## Deploy (Bun)
 
+**One-time:** copy `.env.cloudflare.example` → `.env.cloudflare` and set a [Cloudflare API token](https://dash.cloudflare.com/profile/api-tokens) for this repo (Workers Scripts Edit). Deploy scripts load **only** that file — not OAuth / global shell tokens.
+
 ```bash
 bun install
+cp .env.cloudflare.example .env.cloudflare   # Windows: copy .env.cloudflare.example .env.cloudflare
+# edit .env.cloudflare — CLOUDFLARE_ACCOUNT_ID, CLOUDFLARE_API_TOKEN
+
+bun run cf:whoami                            # verify token
 bun run deploy:campaign-worker
 ```
 
 Set secrets:
 
 ```bash
-bunx wrangler secret put CURSOR_API_KEY -c wrangler.campaign.toml
-bunx wrangler secret put HKRA_PUBLISH_TOKEN -c wrangler.campaign.toml
-bunx wrangler secret put GITHUB_TOKEN -c wrangler.campaign.toml
-bunx wrangler secret put CAMPAIGN_WEBHOOK_SECRET -c wrangler.campaign.toml
-bunx wrangler secret put SUPABASE_URL -c wrangler.campaign.toml
-bunx wrangler secret put SUPABASE_SERVICE_ROLE_KEY -c wrangler.campaign.toml
+bun run wrangler:cf -- secret put CURSOR_API_KEY -c wrangler.campaign.toml
+bun run wrangler:cf -- secret put HKRA_PUBLISH_TOKEN -c wrangler.campaign.toml
+bun run wrangler:cf -- secret put GITHUB_TOKEN -c wrangler.campaign.toml
+bun run wrangler:cf -- secret put CAMPAIGN_WEBHOOK_SECRET -c wrangler.campaign.toml
+bun run wrangler:cf -- secret put SUPABASE_URL -c wrangler.campaign.toml
+bun run wrangler:cf -- secret put SUPABASE_SERVICE_ROLE_KEY -c wrangler.campaign.toml
 ```
 
 ## Supabase Edge Functions

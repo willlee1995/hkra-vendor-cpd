@@ -5,7 +5,7 @@
 1. Admin enables **Zoom auto** for a vendor (User Management → Zoom auto column, or checkbox when creating a vendor).
 2. Vendor submits a CPD request (no manual Zoom ID when auto is on). They can pick a **Zoom webinar template** from recent HKRA Zoom webinars/templates (`GET /zoom-list-webinars`).
 3. On **approval**: Edge Function creates Zoom webinar → updates `vendor_requests` → syncs HKRA WordPress event with `zoom_webinar_id` JSON param → starts email campaign.
-4. Admin publishes the draft event on hkra.org.hk.
+4. Event is live on hkra.org.hk (default `publish`); use `HKRA_DEFAULT_EVENT_STATUS=draft` if manual publish is required.
 5. Member registers on the HKRA event page; WordPress adds them as a Zoom registrant using product meta.
 
 ## Manual test matrix

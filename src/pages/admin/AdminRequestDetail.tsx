@@ -15,7 +15,10 @@ import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { toast } from 'sonner'
 import { EmailCampaignCard } from '@/components/admin/EmailCampaignCard'
+import { ZoomTemplateSelect } from '@/components/zoom/ZoomTemplateSelect'
 import { vendorApiClient } from '@/lib/vendorApiClient'
+import { zoomTemplateFieldsFromSelection, zoomTemplateSelectionFromRequest } from '@/lib/zoomTypes'
+import { useAdminVendorsList } from '@/hooks/useVendor'
 import { getDisplayableUrl, normalizeStorageUrl, extractStoragePath, getSignedUrl } from '@/lib/storageUtils'
 import {
     Command,
@@ -211,6 +214,9 @@ export function AdminRequestDetail() {
     const [rejectionReason, setRejectionReason] = useState('')
     const [cpdPoints, setCpdPoints] = useState<string>('')
     const [posterUrls, setPosterUrls] = useState<string[]>([])
+    const [zoomTemplateSelection, setZoomTemplateSelection] = useState('')
+
+    const { data: vendors } = useAdminVendorsList({ enabled: isAdmin() })
 
     // Set page title for admin
     usePageTitle('HKRA CPD Admin Portal')
@@ -238,6 +244,28 @@ export function AdminRequestDetail() {
         updatePosterUrls()
     }, [request?.poster_file_url])
 
+    useEffect(() => {
+        if (request) {
+            setZoomTemplateSelection(zoomTemplateSelectionFromRequest(request))
+        }
+    }, [request])
+
+    const requestVendor = vendors?.find((v) => v.id === request?.vendor_id)
+    const hasVendorTemplatePreference = Boolean(
+        request?.zoom_template_webinar_id && request?.zoom_template_kind,
+    )
+    const showZoomTemplateSelect = Boolean(
+        !(request?.on24_key || request?.on24_id) &&
+        (requestVendor?.zoom_webinar_auto_create || hasVendorTemplatePreference),
+    )
+
+    const buildZoomTemplateUpdate = () => zoomTemplateFieldsFromSelection(zoomTemplateSelection)
+
+    const saveZoomTemplateSelection = async (requestId: string) => {
+        if (!showZoomTemplateSelect) return
+        await vendorApiClient.updateRequest(requestId, buildZoomTemplateUpdate())
+    }
+
     const handleApprove = async () => {
         if (!id || !isAdmin()) return
 
@@ -258,6 +286,7 @@ export function AdminRequestDetail() {
                 status: 'approved',
                 admin_notes: adminNotes,
                 expected_cpd_points: cpdPointsNum,
+                ...buildZoomTemplateUpdate(),
             })
             toast.success('Request approved successfully')
             navigate('/admin/dashboard')
@@ -334,6 +363,7 @@ export function AdminRequestDetail() {
                 admin_notes: adminNotes || 'Request unrejected and approved.',
                 rejection_reason: undefined,
                 expected_cpd_points: cpdPointsNum,
+                ...buildZoomTemplateUpdate(),
             })
             toast.success('Request unrejected and approved successfully')
             navigate('/admin/dashboard')
@@ -399,6 +429,7 @@ export function AdminRequestDetail() {
         }
         setZoomSyncing(true)
         try {
+            await saveZoomTemplateSelection(id)
             const result = await vendorApiClient.createZoomWebinarFromRequest(id, { force, resync_wp: true })
             if (result.skipped) {
                 const reason = result.reason ?? 'unknown'
@@ -615,7 +646,23 @@ export function AdminRequestDetail() {
                                         <p className="text-destructive/90">{request.zoom_sync_error}</p>
                                     </div>
                                 )}
-                                {request.zoom_template_webinar_id && (
+                                {showZoomTemplateSelect && (
+                                    <div className="space-y-2 rounded-md border border-dashed p-3">
+                                        {request.zoom_template_webinar_id && (
+                                            <p className="text-sm text-muted-foreground">
+                                                Vendor preference:{' '}
+                                                {request.zoom_template_kind === 'template' ? 'Saved template' : 'Past webinar'}{' '}
+                                                <span className="font-mono">{request.zoom_template_webinar_id}</span>
+                                            </p>
+                                        )}
+                                        <ZoomTemplateSelect
+                                            value={zoomTemplateSelection}
+                                            onChange={setZoomTemplateSelection}
+                                            description="Choose template settings before creating or retrying the Zoom webinar. Saves when you click Create/Retry."
+                                        />
+                                    </div>
+                                )}
+                                {request.zoom_template_webinar_id && !showZoomTemplateSelect && (
                                     <div>
                                         <p className="text-sm font-medium text-muted-foreground">Zoom template source</p>
                                         <p className="text-sm">
@@ -789,6 +836,23 @@ export function AdminRequestDetail() {
                                         Enter CPD points to be awarded (0.5 - 8.0)
                                     </p>
                                 </div>
+                                {showZoomTemplateSelect && (
+                                    <div className="space-y-2 rounded-md border border-dashed p-3">
+                                        {request.zoom_template_webinar_id && (
+                                            <p className="text-sm text-muted-foreground">
+                                                Vendor preference:{' '}
+                                                {request.zoom_template_kind === 'template' ? 'Saved template' : 'Past webinar'}{' '}
+                                                <span className="font-mono">{request.zoom_template_webinar_id}</span>
+                                                . You can override below before approving.
+                                            </p>
+                                        )}
+                                        <ZoomTemplateSelect
+                                            value={zoomTemplateSelection}
+                                            onChange={setZoomTemplateSelection}
+                                            description="Zoom webinar settings copied on approval. Admin selection overrides the vendor's choice."
+                                        />
+                                    </div>
+                                )}
                                 <div>
                                     <Label htmlFor="rejection-reason">Rejection Reason (Required for rejection)</Label>
                                     <ReasonSelector
@@ -984,6 +1048,23 @@ export function AdminRequestDetail() {
                                             Enter CPD points to be awarded (0.5 - 8.0)
                                         </p>
                                     </div>
+                                    {showZoomTemplateSelect && (
+                                        <div className="space-y-2 rounded-md border border-dashed p-3">
+                                            {request.zoom_template_webinar_id && (
+                                                <p className="text-sm text-muted-foreground">
+                                                    Vendor preference:{' '}
+                                                    {request.zoom_template_kind === 'template' ? 'Saved template' : 'Past webinar'}{' '}
+                                                    <span className="font-mono">{request.zoom_template_webinar_id}</span>
+                                                    . You can override below before approving.
+                                                </p>
+                                            )}
+                                            <ZoomTemplateSelect
+                                                value={zoomTemplateSelection}
+                                                onChange={setZoomTemplateSelection}
+                                                description="Zoom webinar settings copied on approval. Admin selection overrides the vendor's choice."
+                                            />
+                                        </div>
+                                    )}
                                     <Button
                                         onClick={handleUnreject}
                                         disabled={isProcessing}

@@ -107,13 +107,13 @@ function parseEnvBool(name: string, defaultTrue: boolean): boolean {
   return defaultTrue
 }
 
-/** WordPress post status for new events. Default draft — publish manually on HKRA site when ready. */
+/** WordPress post status for new events. Default publish — live on hkra.org.hk after approval sync. */
 function parseEventStatus(): string {
   const v = Deno.env.get("HKRA_DEFAULT_EVENT_STATUS")?.trim().toLowerCase()
   if (v === "publish" || v === "draft" || v === "pending" || v === "private") {
     return v
   }
-  return "draft"
+  return "publish"
 }
 
 function parseJsonArray(name: string): string[] | undefined {

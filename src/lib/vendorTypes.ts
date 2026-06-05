@@ -98,8 +98,8 @@ export interface UpdateVendorRequestInput {
   contact_phone?: string
   poster_file_url?: string[] // Array of URLs for event-related materials
   zoom_webinar_id?: string
-  zoom_template_webinar_id?: string
-  zoom_template_kind?: 'template' | 'webinar' | 'past'
+  zoom_template_webinar_id?: string | null
+  zoom_template_kind?: 'template' | 'webinar' | 'past' | null
   on24_key?: string
   on24_id?: string
   expected_promotion_date?: string

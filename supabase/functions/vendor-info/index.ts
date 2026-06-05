@@ -179,7 +179,7 @@ serve(async (req) => {
 
         const { data: vendors, error: listError } = await supabaseClient
           .from('vendors')
-          .select('id, user_id, company_name, contact_name, contact_email, contact_phone, created_at, updated_at')
+          .select('id, user_id, company_name, contact_name, contact_email, contact_phone, notification_emails, zoom_webinar_auto_create, created_at, updated_at')
           .order('company_name', { ascending: true })
 
         if (listError) {
