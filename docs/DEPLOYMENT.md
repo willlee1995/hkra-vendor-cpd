@@ -164,7 +164,7 @@ Configure Worker secrets per [CAMPAIGN_ORCHESTRATOR.md](CAMPAIGN_ORCHESTRATOR.md
 
 Out of this repo but required for Zoom auto-registrant flow:
 
-- Accept `zoom_webinar_id` on `POST /wp-json/em-custom/v1/create-event`
+- Accept `zoom_webinar_id` on `POST /wp-json/hkra-em/v1/events` (hkra-em-api plugin)
 - Store on EM Pro **ticket/product meta**
 - On approved booking → Zoom Add Registrant API
 

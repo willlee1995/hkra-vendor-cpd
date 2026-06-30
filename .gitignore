@@ -28,7 +28,9 @@ dist-ssr
 .env.local
 .env.*.local
 .env.deploy
+.env.edge
 .env.cloudflare
+.env.hkra
 
 # Cloudflare
 .wrangler

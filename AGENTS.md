@@ -46,3 +46,19 @@ See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** — migrations (SQL Editor), Ed
 - [CONTEXT.md](CONTEXT.md) — domain glossary
 - [docs/ZOOM_WEBINAR_INTEGRATION.md](docs/ZOOM_WEBINAR_INTEGRATION.md) — Zoom auto-create + templates
 - [docs/CAMPAIGN_ORCHESTRATOR.md](docs/CAMPAIGN_ORCHESTRATOR.md) — email campaign worker
+
+## Learned User Preferences
+
+- After changes under `supabase/functions/`, remind to deploy edge functions to the self-hosted instance at **https://supabase.hkra.org.hk** (not only commit locally).
+- Vendor extra notification addresses are edited by **super-admin** only (`/admin/vendor-notifications`; `manage-users` PATCH for `notification_emails` is super-admin restricted).
+
+## Learned Workspace Facts
+
+- HKRA WordPress event sync uses the **`hkra-em-api`** plugin: `POST /wp-json/hkra-em/v1/events` (namespace `hkra-em/v1`). Legacy `em-custom/v1/create-event` is **retired**.
+- HKRA event sync client: `supabase/functions/_shared/hkraCreateEvent.ts` (used by `vendor-requests` and `hkra-create-event`).
+- Self-hosted Supabase VPS: **46.202.166.252**; Docker container **`supabase-edge-functions`**; SSH user **`root`** (`SSH_TARGET=root@46.202.166.252` in `.env.deploy`).
+- Supabase API / Studio base: **https://supabase.hkra.org.hk**.
+- Edge function deploy scripts: key-based `scripts/deploy-functions-vps.ps1`; password-based `scripts/deploy-functions-vps-password.py` (`DEPLOY_SSH_PASSWORD` env var). Scripts deploy **code only** — not secrets.
+- Local WordPress creds for dev/testing: **`.env.hkra`** (gitignored) with `HKRA_WP_*`; production secrets belong on the functions container / VPS env.
+- Known WordPress issue: `GET hkra-em/v1/discovery` and list routes work, but **`POST /hkra-em/v1/events` returns HTTP 500** with empty HTML — investigate **hkra-em-api** / server-side PHP, not vendor portal payloads.
+- Extra vendor notification recipients: `vendors.notification_emails` merged with each request’s `contact_email` via `collectVendorNotificationRecipients()` in `supabase/functions/vendor-requests/email.ts`.

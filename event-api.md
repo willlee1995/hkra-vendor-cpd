@@ -1,10 +1,15 @@
-# Events Manager — Create Event API (External Integration Guide)
+# HKRA Events Manager API — Vendor portal integration
 
-This document describes the WordPress REST API endpoint used to **create** events in **Events Manager** (with Pro features where applicable, such as tickets and role-restricted booking). It is intended for **trusted external systems** that integrate with the HKRA website.
+The HKRA website uses the **`hkra-em-api`** WordPress plugin (namespace **`hkra-em/v1`**). The vendor portal creates events via:
 
-**Base URL (replace with your environment):** `https://YOUR-DOMAIN/`
-**Endpoint path:** `/wp-json/em-custom/v1/create-event`
-**Full URL example:** `https://YOUR-DOMAIN/wp-json/em-custom/v1/create-event`
+| Property | Value |
+| -------- | ----- |
+| **Base URL** | `https://hkra.org.hk` (or `HKRA_WP_BASE_URL`) |
+| **Create event** | `POST /wp-json/hkra-em/v1/events` |
+| **Discovery** | `GET /wp-json/hkra-em/v1/discovery` |
+| **Plugin** | `hkra-em-api` v1.0.0 |
+
+The legacy Code Snippet route `em-custom/v1/create-event` is **retired**. Full plugin spec: `SPEC.md` / `API.md` on the WordPress site.
 
 ---
 
@@ -25,7 +30,7 @@ The endpoint uses WordPress’s permission check:
 current_user_can( 'publish_events' )
 ```
 
-External clients must authenticate as a user with that capability. Common approaches:
+External clients must authenticate as a user with **`edit_events`** / **`publish_events`** (see plugin discovery `capabilities.events`). Common approaches:
 
 ### 1. Application Passwords (recommended for server-to-server)
 
@@ -122,10 +127,10 @@ Applied only after a successful `EM_Event::save()`.
 | Parameter          | Type             | Default (RSVP on) | Description                                                                                                                                                       |
 | ------------------ | ---------------- | ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `booking_form_id`  | integer          | form named **Empty** | Saved as post meta `_custom_booking_form`. If omitted, the API looks up the Events Manager Pro booking form named `Empty`. Override with an explicit ID.        |
-| `attendee_form`    | string / integer | `none`            | Saved as post meta `_custom_attendee_form`. Use `none` for no attendee fields, or a numeric form ID from Events Manager Pro.                                      |
+| `attendee_form_id` | string / integer | `none`            | Post meta `_custom_attendee_form`. Use `none` to disable. |
 | `cpd`              | string           | —                 | If Advanced Custom Fields is active, updates the site’s CPD field on the event post. Integrators only need to send the value; field configuration is server-side. |
-| `event_categories` | array   | Assigned to taxonomy `event-categories` (non-empty only).                                                                                                         |
-| `event_tags`       | array   | Assigned to taxonomy `event-tags` (non-empty only).                                                                                                               |
+| `event_categories` | array   | Alias **`categories`** — taxonomy `event-categories`. |
+| `event_tags`       | array   | Alias **`tags`** — taxonomy `event-tags`. |
 | `subspecialties`   | array   | Assigned to taxonomy `subspecialties` (non-empty only).                                                                                                           |
 | `zoom_webinar_id`  | string  | When `event_rsvp` creates the ticket, saved to **Events Manager Pro ticket/product meta** (`zoom_webinar_id`) so approved HKRA site bookings can auto-register attendees in Zoom. Omit or empty = no Zoom bridge. |
 
@@ -137,14 +142,17 @@ Taxonomy values are passed to `wp_set_object_terms()` as provided (typically **t
 
 ## Success response
 
-**HTTP status:** `200`
+**HTTP status:** `201` (or `200`)
 
 ```json
 {
-  "success": true,
-  "id": 12345,
-  "message": "Event created with Roles, Custom Form, and Ticket Name.",
-  "link": "https://YOUR-DOMAIN/events/your-event-slug/"
+  "event": {
+    "event_id": 12345,
+    "post_id": 12345,
+    "title": "Example CPD Webinar",
+    "link": "https://hkra.org.hk/events/your-event-slug/",
+    "status": "draft"
+  }
 }
 ```
 
@@ -171,7 +179,7 @@ WordPress returns JSON with a `code`, `message`, and optional `data.status`.
 ## Example: `curl` with JSON and Application Password
 
 ```bash
-curl -sS -X POST "https://YOUR-DOMAIN/wp-json/em-custom/v1/create-event" \
+curl -sS -X POST "https://hkra.org.hk/wp-json/hkra-em/v1/events" \
   -u "INTEGRATION_USERNAME:XXXX XXXX XXXX XXXX XXXX XXXX" \
   -H "Content-Type: application/json" \
   -d '{
@@ -190,10 +198,10 @@ curl -sS -X POST "https://YOUR-DOMAIN/wp-json/em-custom/v1/create-event" \
     "ticket_spaces": 200,
     "ticket_name": "Standard registration",
     "allowed_roles": ["subscriber", "hkra_member"],
-    "attendee_form": "none",
+    "attendee_form_id": "none",
     "cpd": "2.5",
-    "event_categories": [12, 34],
-    "event_tags": ["webinar"],
+    "categories": [12, 34],
+    "tags": ["webinar"],
     "subspecialties": [7]
   }'
 ```
@@ -212,10 +220,12 @@ Replace `YOUR-DOMAIN`, username, and application password. Use a real location I
 
 ## Implementation reference
 
-The behaviour above is defined in the site’s Code Snippets (or equivalent) by:
+- WordPress plugin: **`hkra-em-api`** (`hkra-em/v1`)
+- Vendor portal client: `supabase/functions/_shared/hkraCreateEvent.ts` → `POST …/hkra-em/v1/events`
+- Optional env override: `HKRA_WP_API_NAMESPACE` (default `hkra-em/v1`)
 
-- Route namespace: `em-custom/v1`
-- Route: `/create-event`
-- Callback: `handle_create_full_options_event`
+Discovery before integration:
 
-If behaviour changes in code, this document should be updated together with those changes.
+```bash
+curl -sS -u "USER:APP_PASSWORD" "https://hkra.org.hk/wp-json/hkra-em/v1/discovery"
+```

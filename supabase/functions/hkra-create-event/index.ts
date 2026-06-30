@@ -1,20 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { corsHeaders } from "../_shared/cors.ts"
 import { syncHkraEventFromRequest } from "../_shared/hkraCreateEvent.ts"
 
-const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || ""
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || ""
-const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || ""
-
-if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY || !SUPABASE_ANON_KEY) {
-  throw new Error(
-    "Missing required environment variables: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY",
-  )
-}
-
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+function getSupabaseConfig():
+  | { url: string; serviceRoleKey: string; anonKey: string }
+  | null {
+  const url = Deno.env.get("SUPABASE_URL") || ""
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || ""
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || ""
+  if (!url || !serviceRoleKey || !anonKey) return null
+  return { url, serviceRoleKey, anonKey }
 }
 
 const UUID_RE =
@@ -35,15 +31,25 @@ function normalizeAuthRole(user: {
 }
 
 serve(async (req) => {
+  const cors = corsHeaders(req)
+
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders })
+    return new Response("ok", { headers: cors })
   }
 
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...cors, "Content-Type": "application/json" },
     })
+  }
+
+  const config = getSupabaseConfig()
+  if (!config) {
+    return new Response(
+      JSON.stringify({ error: "Server misconfiguration: missing Supabase env vars" }),
+      { status: 503, headers: { ...cors, "Content-Type": "application/json" } },
+    )
   }
 
   try {
@@ -51,11 +57,11 @@ serve(async (req) => {
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...cors, "Content-Type": "application/json" },
       })
     }
 
-    const userClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    const userClient = createClient(config.url, config.anonKey, {
       global: { headers: { Authorization: authHeader } },
     })
 
@@ -67,7 +73,7 @@ serve(async (req) => {
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...cors, "Content-Type": "application/json" },
       })
     }
 
@@ -76,7 +82,7 @@ serve(async (req) => {
     if (!isAdmin) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
         status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...cors, "Content-Type": "application/json" },
       })
     }
 
@@ -89,11 +95,11 @@ serve(async (req) => {
     if (!requestId || !UUID_RE.test(requestId)) {
       return new Response(JSON.stringify({ error: "request_id must be a valid UUID" }), {
         status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        headers: { ...cors, "Content-Type": "application/json" },
       })
     }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    const supabase = createClient(config.url, config.serviceRoleKey)
 
     const result = await syncHkraEventFromRequest(supabase, requestId, {
       force: Boolean(body.force),
@@ -108,7 +114,7 @@ serve(async (req) => {
           message: "HKRA event already linked. Pass force: true to create another (support only).",
           request: result.request,
         }),
-        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 409, headers: { ...cors, "Content-Type": "application/json" } },
       )
     }
 
@@ -121,7 +127,7 @@ serve(async (req) => {
           message: "HKRA WordPress credentials are not configured on the server.",
           request: result.request,
         }),
-        { status: 503, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 503, headers: { ...cors, "Content-Type": "application/json" } },
       )
     }
 
@@ -132,7 +138,7 @@ serve(async (req) => {
           error: result.error,
           request: result.request,
         }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        { status: 502, headers: { ...cors, "Content-Type": "application/json" } },
       )
     }
 
@@ -144,13 +150,13 @@ serve(async (req) => {
         link: (result.request as { hkra_event_permalink?: string }).hkra_event_permalink,
         request: result.request,
       }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      { headers: { ...cors, "Content-Type": "application/json" } },
     )
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return new Response(JSON.stringify({ error: msg }), {
       status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      headers: { ...cors, "Content-Type": "application/json" },
     })
   }
 })

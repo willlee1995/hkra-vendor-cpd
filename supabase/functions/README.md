@@ -14,7 +14,7 @@ The following environment variables must be set on your host server:
 
 ### HKRA WordPress event sync (`hkra-create-event` + approval automation)
 
-Used to create Events Manager events on the HKRA website via `POST /wp-json/em-custom/v1/create-event` (see `event-api.md` in the repo root). Set these on the Supabase project (or container) for the Edge Functions runtime:
+Used to create Events Manager events on the HKRA website via `POST /wp-json/hkra-em/v1/events` (`hkra-em-api` plugin; see `event-api.md`). Set these on the Supabase project (or container) for the Edge Functions runtime:
 
 | Variable | Required | Description |
 | -------- | -------- | ----------- |
@@ -36,7 +36,7 @@ Optional tuning (defaults are safe for most HKRA CPD flows):
 | `HKRA_DEFAULT_TICKET_NAME` | `HKRA - Registration` |
 | `HKRA_DEFAULT_LOCATION_ID` | Omit or `0` for no location |
 | `HKRA_DEFAULT_BOOKING_FORM_ID` | Optional — overrides name lookup; if unset, WordPress API uses booking form named **Empty** |
-| `HKRA_DEFAULT_ATTENDEE_FORM` | `none` — attendee form meta (`none` or numeric form ID) |
+| `HKRA_DEFAULT_ATTENDEE_FORM` | `none` — maps to API field `attendee_form_id` |
 | `HKRA_ALLOWED_ROLES_JSON` | e.g. `["subscriber","hkra_member"]` |
 | `HKRA_EVENT_CATEGORIES_JSON` | Array of term IDs or slugs (site-specific) |
 | `HKRA_EVENT_TAGS_JSON` | Same |
@@ -70,7 +70,7 @@ For vendors with `zoom_webinar_auto_create`, approval calls Zoom then HKRA WordP
 
 If Zoom credentials are missing, approval still succeeds; `zoom_sync_error` is stored for admin retry.
 
-WordPress must accept `zoom_webinar_id` on `create-event` and store it on EM Pro ticket product meta for the registration → Zoom registrant bridge (see `event-api.md`).
+WordPress must accept `zoom_webinar_id` on event create (ticket meta) for the registration → Zoom registrant bridge (see `event-api.md` and plugin `API.md`).
 
 | `zoom-list-webinars` | GET — list templates + recent/past webinars for vendor template picker (Zoom-eligible vendors) |
 

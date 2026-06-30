@@ -1,6 +1,6 @@
 /**
- * Shared HKRA WordPress Events Manager create-event integration.
- * @see event-api.md
+ * Shared HKRA WordPress Events Manager event sync.
+ * @see event-api.md — POST /wp-json/hkra-em/v1/events (hkra-em-api plugin)
  */
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2"
 
@@ -52,10 +52,13 @@ export interface HkraCreateEventPayload {
   ticket_name?: string
   allowed_roles?: string[]
   booking_form_id?: number
-  attendee_form?: string | number
+  /** hkra-em-api: post meta _custom_attendee_form; use "none" to disable */
+  attendee_form_id?: string | number
   cpd?: string
-  event_categories?: (string | number)[]
-  event_tags?: (string | number)[]
+  /** Taxonomy term IDs/slugs — hkra-em-api alias for event-categories */
+  categories?: (string | number)[]
+  /** Taxonomy term IDs/slugs — hkra-em-api alias for event-tags */
+  tags?: (string | number)[]
   subspecialties?: (string | number)[]
   /** Stored on EM Pro ticket/product meta for Zoom registrant bridge */
   zoom_webinar_id?: string
@@ -208,7 +211,7 @@ export function buildPayloadFromVendorRequest(row: VendorRequestRow): HkraCreate
     payload.ticket_name = Deno.env.get("HKRA_DEFAULT_TICKET_NAME")?.trim() || "HKRA - Registration"
     const roles = parseJsonArray("HKRA_ALLOWED_ROLES_JSON")
     if (roles?.length) payload.allowed_roles = roles
-    payload.attendee_form = Deno.env.get("HKRA_DEFAULT_ATTENDEE_FORM")?.trim() || "none"
+    payload.attendee_form_id = Deno.env.get("HKRA_DEFAULT_ATTENDEE_FORM")?.trim() || "none"
   } else {
     payload.event_rsvp = false
   }
@@ -219,9 +222,9 @@ export function buildPayloadFromVendorRequest(row: VendorRequestRow): HkraCreate
   }
 
   const cats = parseJsonNumberArray("HKRA_EVENT_CATEGORIES_JSON")
-  if (cats?.length) payload.event_categories = cats
+  if (cats?.length) payload.categories = cats
   const tags = parseJsonNumberArray("HKRA_EVENT_TAGS_JSON")
-  if (tags?.length) payload.event_tags = tags
+  if (tags?.length) payload.tags = tags
   const subs = parseJsonNumberArray("HKRA_SUBSPECIALTIES_JSON")
   if (subs?.length) payload.subspecialties = subs
 
@@ -233,6 +236,75 @@ export function buildPayloadFromVendorRequest(row: VendorRequestRow): HkraCreate
   return payload
 }
 
+async function readWordPressResponseBody(res: Response): Promise<Record<string, unknown>> {
+  const text = await res.text()
+  if (!text.trim()) {
+    return res.status >= 500
+      ? {
+        code: "wp_fatal",
+        message:
+          "WordPress returned an empty HTTP 500 (PHP fatal error — check hkra.org.hk debug.log and hkra-em-api plugin)",
+      }
+      : {}
+  }
+  try {
+    const parsed = JSON.parse(text) as unknown
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>
+    }
+    return { message: text.slice(0, 500) }
+  } catch {
+    return {
+      code: "non_json_response",
+      message: text.slice(0, 500),
+    }
+  }
+}
+
+function wordPressErrorMessage(status: number, body: Record<string, unknown>): string {
+  if (typeof body.message === "string" && body.message.trim()) {
+    return body.message
+  }
+  if (typeof body.code === "string" && body.code.trim()) {
+    return body.code
+  }
+  if (status === 500) {
+    return "WordPress hkra-em/v1/events returned HTTP 500 — check hkra-em-api plugin and debug.log"
+  }
+  return `WordPress returned HTTP ${status}`
+}
+
+function hkraEmApiNamespace(): string {
+  return Deno.env.get("HKRA_WP_API_NAMESPACE")?.trim() || "hkra-em/v1"
+}
+
+function hkraEmEventsUrl(base: string): string {
+  return `${base.replace(/\/$/, "")}/wp-json/${hkraEmApiNamespace()}/events`
+}
+
+function parseCreateEventResponse(
+  body: Record<string, unknown>,
+): { id: number; link?: string } | null {
+  const event = body.event
+  const src =
+    event && typeof event === "object" && !Array.isArray(event)
+      ? (event as Record<string, unknown>)
+      : body
+  const rawId = src.event_id ?? src.post_id ?? src.id
+  const id =
+    typeof rawId === "number"
+      ? rawId
+      : typeof rawId === "string"
+      ? parseInt(rawId, 10)
+      : NaN
+  if (!Number.isFinite(id)) return null
+  const link = src.link
+  return {
+    id,
+    link: typeof link === "string" && link.length > 0 ? link : undefined,
+  }
+}
+
 async function postCreateEventToWordPress(
   payload: HkraCreateEventPayload,
 ): Promise<{ ok: true; id: number; link: string } | { ok: false; status: number; body: unknown }> {
@@ -240,7 +312,7 @@ async function postCreateEventToWordPress(
   const user = Deno.env.get("HKRA_WP_USER")!
   const password = Deno.env.get("HKRA_WP_APP_PASSWORD")!
   const auth = btoa(`${user}:${password}`)
-  const url = `${base}/wp-json/em-custom/v1/create-event`
+  const url = hkraEmEventsUrl(base)
 
   const res = await fetch(url, {
     method: "POST",
@@ -251,25 +323,16 @@ async function postCreateEventToWordPress(
     body: JSON.stringify(payload),
   })
 
-  const body = await res.json().catch(() => ({}))
+  const body = await readWordPressResponseBody(res)
+  const parsed = parseCreateEventResponse(body)
 
-  if (res.ok && body && typeof body === "object" && (body as { success?: boolean }).success === true) {
-    const rawId = (body as { id?: number | string }).id
-    const id =
-      typeof rawId === "number"
-        ? rawId
-        : typeof rawId === "string"
-        ? parseInt(rawId, 10)
-        : NaN
-    const linkFromBody = (body as { link?: string }).link
-    if (Number.isFinite(id)) {
-      if (typeof linkFromBody === "string" && linkFromBody.length > 0) {
-        return { ok: true, id, link: linkFromBody }
-      }
-      const fetched = await fetchWordPressEventPermalink(base, id)
-      if (fetched) {
-        return { ok: true, id, link: fetched }
-      }
+  if (res.ok && parsed) {
+    if (parsed.link) {
+      return { ok: true, id: parsed.id, link: parsed.link }
+    }
+    const fetched = await fetchWordPressEventPermalink(base, parsed.id)
+    if (fetched) {
+      return { ok: true, id: parsed.id, link: fetched }
     }
   }
 
@@ -285,7 +348,9 @@ async function fetchWordPressEventPermalink(baseUrl: string, wpEventId: number):
     headers.Authorization = `Basic ${btoa(`${user}:${pass}`)}`
   }
 
+  const ns = hkraEmApiNamespace()
   const paths = [
+    `/wp-json/${ns}/events/${wpEventId}`,
     `/wp-json/wp/v2/events/${wpEventId}`,
     `/wp-json/wp/v2/event/${wpEventId}`,
     `/wp-json/wp/v2/posts/${wpEventId}`,
@@ -413,13 +478,9 @@ export async function syncHkraEventFromRequest(
       }
     }
 
-    const errBody = wp.body as { message?: string; code?: string }
-    const msg =
-      typeof errBody?.message === "string"
-        ? errBody.message
-        : typeof errBody?.code === "string"
-        ? errBody.code
-        : `WordPress returned HTTP ${wp.status}`
+    const errBody = wp.body as Record<string, unknown>
+    const msg = wordPressErrorMessage(wp.status, errBody)
+    console.error("[hkraCreateEvent] WordPress create-event failed:", wp.status, errBody)
 
     await supabase
       .from("vendor_requests")

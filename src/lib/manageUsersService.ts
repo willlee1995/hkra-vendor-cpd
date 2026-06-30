@@ -1,24 +1,13 @@
-import { supabase } from './supabase'
+import { getEdgeFunctionAuthHeaders } from './edgeFunctionAuth'
 import type { User, CreateUserInput, UpdateVendorFlagsInput } from './userTypes'
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1`
 
-async function getAuthHeaders() {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) {
-        throw new Error('Not authenticated')
-    }
-    return {
-        'Authorization': `Bearer ${session.access_token}`,
-        'Content-Type': 'application/json',
-    }
-}
-
 export const manageUsersService = {
     // Get all users
     async getUsers(): Promise<User[]> {
-        const headers = await getAuthHeaders()
+        const headers = await getEdgeFunctionAuthHeaders()
         const response = await fetch(`${EDGE_FUNCTION_URL}/manage-users`, {
             method: 'GET',
             headers,
@@ -34,7 +23,7 @@ export const manageUsersService = {
 
     // Create new user
     async createUser(input: CreateUserInput): Promise<User> {
-        const headers = await getAuthHeaders()
+        const headers = await getEdgeFunctionAuthHeaders()
         const response = await fetch(`${EDGE_FUNCTION_URL}/manage-users`, {
             method: 'POST',
             headers,
@@ -50,7 +39,7 @@ export const manageUsersService = {
     },
 
     async updateVendorFlags(input: UpdateVendorFlagsInput): Promise<{ zoom_webinar_auto_create: boolean }> {
-        const headers = await getAuthHeaders()
+        const headers = await getEdgeFunctionAuthHeaders()
         const response = await fetch(`${EDGE_FUNCTION_URL}/manage-users`, {
             method: 'PATCH',
             headers,
@@ -67,7 +56,7 @@ export const manageUsersService = {
 
     // Delete user
     async deleteUser(id: string): Promise<void> {
-        const headers = await getAuthHeaders()
+        const headers = await getEdgeFunctionAuthHeaders()
         const response = await fetch(`${EDGE_FUNCTION_URL}/manage-users?id=${id}`, {
             method: 'DELETE',
             headers,
@@ -80,7 +69,7 @@ export const manageUsersService = {
     },
 
     async updateVendorNotificationEmails(userId: string, notification_emails: string[]): Promise<{ user_id: string; notification_emails: string[] }> {
-        const headers = await getAuthHeaders()
+        const headers = await getEdgeFunctionAuthHeaders()
         const response = await fetch(`${EDGE_FUNCTION_URL}/manage-users`, {
             method: 'PATCH',
             headers,

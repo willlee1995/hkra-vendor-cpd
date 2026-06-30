@@ -1,4 +1,5 @@
 import { supabase } from './supabase'
+import { getEdgeFunctionAuthHeaders } from './edgeFunctionAuth'
 import type {
   EmailCampaignJob,
   FluentCrmAudience,
@@ -14,21 +15,10 @@ import type { ZoomWebinarTemplateOption } from './zoomTypes'
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1`
 
-async function getAuthHeaders() {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) {
-    throw new Error('Not authenticated')
-  }
-  return {
-    'Authorization': `Bearer ${session.access_token}`,
-    'Content-Type': 'application/json',
-  }
-}
-
 export const vendorApiClient = {
   // Get all vendor requests
   async getRequests(filter?: VendorRequestsFilter): Promise<VendorRequest[]> {
-    const headers = await getAuthHeaders()
+    const headers = await getEdgeFunctionAuthHeaders()
     const params = new URLSearchParams()
     if (filter?.status) {
       params.append('status', filter.status)
@@ -53,7 +43,7 @@ export const vendorApiClient = {
 
   // Get single vendor request
   async getRequest(id: string): Promise<VendorRequest> {
-    const headers = await getAuthHeaders()
+    const headers = await getEdgeFunctionAuthHeaders()
     const response = await fetch(`${EDGE_FUNCTION_URL}/vendor-requests/${id}`, {
       method: 'GET',
       headers,
@@ -69,7 +59,7 @@ export const vendorApiClient = {
 
   // Create new vendor request
   async createRequest(input: CreateVendorRequestInput): Promise<VendorRequest> {
-    const headers = await getAuthHeaders()
+    const headers = await getEdgeFunctionAuthHeaders()
     const response = await fetch(`${EDGE_FUNCTION_URL}/vendor-requests`, {
       method: 'POST',
       headers,
@@ -99,7 +89,7 @@ export const vendorApiClient = {
 
   // Update vendor request
   async updateRequest(id: string, input: UpdateVendorRequestInput): Promise<VendorRequest> {
-    const headers = await getAuthHeaders()
+    const headers = await getEdgeFunctionAuthHeaders()
     const response = await fetch(`${EDGE_FUNCTION_URL}/vendor-requests/${id}`, {
       method: 'PATCH',
       headers,
@@ -116,7 +106,7 @@ export const vendorApiClient = {
 
   // Withdraw vendor request
   async withdrawRequest(id: string): Promise<VendorRequest> {
-    const headers = await getAuthHeaders()
+    const headers = await getEdgeFunctionAuthHeaders()
     const response = await fetch(`${EDGE_FUNCTION_URL}/vendor-requests/${id}`, {
       method: 'DELETE',
       headers,
@@ -174,7 +164,7 @@ export const vendorApiClient = {
 
   // Upload poster files (supports multiple files)
   async uploadPoster(files: File[], vendorId?: string): Promise<string[]> {
-    const headers = await getAuthHeaders()
+    const headers = await getEdgeFunctionAuthHeaders()
 
     // Create FormData for file upload
     const formData = new FormData()
@@ -240,7 +230,7 @@ export const vendorApiClient = {
     link?: string
     request?: VendorRequest
   }> {
-    const headers = await getAuthHeaders()
+    const headers = await getEdgeFunctionAuthHeaders()
     const response = await fetch(`${EDGE_FUNCTION_URL}/hkra-create-event`, {
       method: 'POST',
       headers,
@@ -295,7 +285,7 @@ export const vendorApiClient = {
     configured: boolean
     message?: string
   }> {
-    const headers = await getAuthHeaders()
+    const headers = await getEdgeFunctionAuthHeaders()
     const response = await fetch(`${EDGE_FUNCTION_URL}/zoom-list-webinars`, {
       method: 'GET',
       headers,
@@ -327,7 +317,7 @@ export const vendorApiClient = {
     zoom_join_url?: string
     request?: VendorRequest
   }> {
-    const headers = await getAuthHeaders()
+    const headers = await getEdgeFunctionAuthHeaders()
     const response = await fetch(`${EDGE_FUNCTION_URL}/zoom-create-webinar`, {
       method: 'POST',
       headers,
@@ -356,7 +346,7 @@ export const vendorApiClient = {
   },
 
   async getEmailCampaignJob(requestId: string): Promise<{ job: EmailCampaignJob | null }> {
-    const headers = await getAuthHeaders()
+    const headers = await getEdgeFunctionAuthHeaders()
     const response = await fetch(`${EDGE_FUNCTION_URL}/campaign-proxy/${requestId}`, {
       method: 'GET',
       headers,
@@ -371,7 +361,7 @@ export const vendorApiClient = {
   },
 
   async getFluentCrmAudiences(): Promise<{ lists: FluentCrmAudience[] }> {
-    const headers = await getAuthHeaders()
+    const headers = await getEdgeFunctionAuthHeaders()
     const response = await fetch(`${EDGE_FUNCTION_URL}/campaign-proxy/audiences`, {
       method: 'GET',
       headers,
@@ -390,7 +380,7 @@ export const vendorApiClient = {
     listIds: string[],
     scheduleAt?: string,
   ): Promise<{ success: boolean; result?: Record<string, unknown> }> {
-    const headers = await getAuthHeaders()
+    const headers = await getEdgeFunctionAuthHeaders()
     const response = await fetch(
       `${EDGE_FUNCTION_URL}/campaign-proxy/${requestId}/approve-schedule`,
       {
@@ -415,7 +405,7 @@ export const vendorApiClient = {
     requestId: string,
     options?: { force?: boolean; adminPrompt?: string | null },
   ): Promise<{ job_id: string; status: string; skipped?: boolean; message?: string }> {
-    const headers = await getAuthHeaders()
+    const headers = await getEdgeFunctionAuthHeaders()
     const response = await fetch(`${EDGE_FUNCTION_URL}/campaign-proxy/${requestId}/start`, {
       method: 'POST',
       headers,
@@ -439,7 +429,7 @@ export const vendorApiClient = {
     requestId: string,
     options?: { adminPrompt?: string | null },
   ): Promise<{ job_id: string; status: string }> {
-    const headers = await getAuthHeaders()
+    const headers = await getEdgeFunctionAuthHeaders()
     const response = await fetch(`${EDGE_FUNCTION_URL}/campaign-proxy/${requestId}/retry`, {
       method: 'POST',
       headers,

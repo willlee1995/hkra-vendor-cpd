@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 
-import { supabase } from '@/lib/supabase'
+import { getEdgeFunctionAuthHeaders } from '@/lib/edgeFunctionAuth'
 
 export interface Vendor {
   id: string
@@ -18,23 +18,12 @@ export interface Vendor {
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1`
 
-async function getAuthHeaders() {
-  const { data: { session } } = await supabase.auth.getSession()
-  if (!session) {
-    throw new Error('Not authenticated')
-  }
-  return {
-    'Authorization': `Bearer ${session.access_token}`,
-    'Content-Type': 'application/json',
-  }
-}
-
 export function useVendor(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['vendor'],
     enabled: options?.enabled ?? true,
     queryFn: async (): Promise<Vendor | null> => {
-      const headers = await getAuthHeaders()
+      const headers = await getEdgeFunctionAuthHeaders()
 
       // Use Edge Function to get vendor info (bypasses RLS issues)
       const response = await fetch(`${EDGE_FUNCTION_URL}/vendor-info`, {
@@ -67,7 +56,7 @@ export function useUpdateVendorNotificationEmails() {
 
   return useMutation({
     mutationFn: async (notification_emails: string[]): Promise<Vendor> => {
-      const headers = await getAuthHeaders()
+      const headers = await getEdgeFunctionAuthHeaders()
       const response = await fetch(`${EDGE_FUNCTION_URL}/vendor-info`, {
         method: 'PATCH',
         headers,
@@ -96,7 +85,7 @@ export function useAdminVendorsList(options?: { enabled?: boolean }) {
     queryKey: ['vendors', 'admin-list'],
     enabled: options?.enabled ?? false,
     queryFn: async (): Promise<Vendor[]> => {
-      const headers = await getAuthHeaders()
+      const headers = await getEdgeFunctionAuthHeaders()
       const response = await fetch(`${EDGE_FUNCTION_URL}/vendor-info?list=true`, {
         method: 'GET',
         headers,

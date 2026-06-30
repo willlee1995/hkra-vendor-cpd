@@ -101,6 +101,50 @@ WHERE email = 'your-email@example.com';
    ./scripts/deploy-functions.sh
    ```
 
+### Browser shows CORS error on Edge Functions
+
+**Symptom:** Console: `blocked by CORS policy: No 'Access-Control-Allow-Origin' header` when calling `https://supabase.hkra.org.hk/functions/v1/...` from `https://cpdapproval.hkra.org.hk`.
+
+**Often not CORS:** Browsers report this when the gateway returns **502/504** or the function **failed to boot** (no CORS on that response). Open DevTools → Network → click the failed request and check the **HTTP status**.
+
+**Verify from terminal:**
+
+```powershell
+curl.exe -i -X OPTIONS "https://supabase.hkra.org.hk/functions/v1/hkra-create-event" `
+  -H "Origin: https://cpdapproval.hkra.org.hk" `
+  -H "Access-Control-Request-Method: POST"
+```
+
+Expect `200` and `Access-Control-Allow-Origin`.
+
+**Fixes:**
+
+1. Redeploy `hkra-create-event` and `_shared` (includes `_shared/cors.ts`) to **https://supabase.hkra.org.hk**.
+2. Frontend must send `apikey` + `Authorization` on Edge Function calls (`src/lib/edgeFunctionAuth.ts`); redeploy Pages after pulling.
+3. If OPTIONS is 200 but POST fails with 502, fix the underlying error (often WordPress `POST /hkra-em/v1/events` — see above).
+
+### HKRA website create-event API returns 500
+
+**Symptom:** Admin “Create event on HKRA site” fails; `hkra_event_sync_error` shows HTTP 500; `POST https://hkra.org.hk/wp-json/hkra-em/v1/events` returns **500** with empty HTML body.
+
+**Diagnose:**
+
+```powershell
+# Plugin health
+curl.exe -sS -u "USER:APP_PASSWORD" "https://hkra.org.hk/wp-json/hkra-em/v1/discovery"
+
+# Create (draft, no RSVP)
+curl.exe -i -X POST "https://hkra.org.hk/wp-json/hkra-em/v1/events" `
+  -H "Content-Type: application/json" -u "USER:APP_PASSWORD" `
+  --data-raw '{"title":"test","status":"draft","event_rsvp":false}'
+```
+
+- **Discovery 200** + **POST 500 HTML** → `hkra-em-api` plugin bug on create; check `wp-content/debug.log`.
+- **Discovery 404** → plugin inactive or not deployed.
+- **POST 201/200 JSON** → WordPress OK; check `HKRA_WP_*` on Edge Functions container.
+
+**Vendor portal:** Redeploy `hkra-create-event` and `_shared` after pulling — target **https://supabase.hkra.org.hk**.
+
 ### Storage Upload Errors
 
 **Symptom:** File uploads fail with permission errors.
